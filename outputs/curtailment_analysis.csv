@@ -1,0 +1,6 @@
+scenario,curtailment_MWh,curtailment_hours,reduction_pct
+Pre (baseline),5920.0,4,0.0
+Case_A_zero,0.0,0,100.0
+Case_B_floor,23870.0,6,-303.2094594594595
+Case_C_mixed,11714.0,4,-97.87162162162161
+Case_D_conservative,11714.0,4,-97.87162162162161

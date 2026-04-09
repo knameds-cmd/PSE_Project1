@@ -1,0 +1,9 @@
+name,fuel,pmin,pmax,ramp_up,ramp_down,heat_rate,vom,must_run,marginal_cost
+Nuclear_base,nuclear,22752,23950,4311,4311,2.4,0,true,6188
+Coal_lowcost,coal,7926,19814,13077,13077,2.1,0,false,71945
+Coal_highcost,coal,7238,18094,11942,11942,2.3,0,false,78797
+LNG_CC_low,lng,8205,21591,21591,21591,1.7,0,false,137526
+LNG_CC_mid,lng,8585,22591,22591,22591,1.8,0,false,145616
+LNG_GT_peak,lng,45,118,118,118,2.5,0,false,202244
+Oil_peak,oil,0,2501,2501,2501,3.0,0,false,419801
+Hydro_fixed,hydro,0,6282,6282,6282,0.0,0,false,0
