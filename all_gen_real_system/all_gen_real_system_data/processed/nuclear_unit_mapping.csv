@@ -1,0 +1,26 @@
+generator_id,bus,pmax_mw,unit_name,plant_group,reactor_type,notes
+Nuclear_001,82,1400,새울1호기,새울,APR1400,ini OFF(-24h)
+Nuclear_002,82,1000,고리3호기,고리,OPR1000,
+Nuclear_003,82,1000,고리4호기,고리,OPR1000,
+Nuclear_004,82,1000,신고리1호기,신고리,OPR1000,
+Nuclear_005,82,1000,신고리2호기,신고리,OPR1000,
+Nuclear_006,82,950,새울2호기,새울,APR1400,모델축소 950MW
+Nuclear_007,82,950,새울3호기,새울,APR1400,"모델축소 950MW, 건설중/시운전"
+Nuclear_008,124,1000,한빛1호기,한빛,OPR1000,
+Nuclear_009,124,1000,한빛2호기,한빛,OPR1000,
+Nuclear_010,124,1000,한빛3호기,한빛,OPR1000,ini OFF(-24h)
+Nuclear_011,124,1000,한빛4호기,한빛,OPR1000,ini OFF(-24h)
+Nuclear_012,124,950,한빛5호기,한빛,OPR1000,모델축소 950MW
+Nuclear_013,124,950,한빛6호기,한빛,OPR1000,모델축소 950MW
+Nuclear_014,175,1400,신한울1호기,신한울,APR1400,
+Nuclear_015,175,1400,신한울2호기,신한울,APR1400,
+Nuclear_016,166,1000,신월성2호기,신월성,OPR1000,ini OFF(-24h)
+Nuclear_017,166,1000,신월성1호기,신월성,OPR1000,
+Nuclear_018,166,700,월성2호기,월성,PHWR,중수로
+Nuclear_019,166,700,월성3호기,월성,PHWR,중수로
+Nuclear_020,166,700,월성4호기,월성,PHWR,"중수로, ini OFF(-24h)"
+Nuclear_021,175,1000,한울1호기,한울,OPR1000,
+Nuclear_022,175,1000,한울2호기,한울,OPR1000,
+Nuclear_023,175,950,한울3호기,한울,OPR1000,모델축소 950MW
+Nuclear_024,175,950,한울4호기,한울,OPR1000,모델축소 950MW
+Nuclear_025,175,650,한울5호기,한울,OPR1000,모델축소 650MW

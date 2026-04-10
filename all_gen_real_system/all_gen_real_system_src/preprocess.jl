@@ -251,55 +251,92 @@ function default_fuel_prices()
 end
 
 # ============================================================
-# 7. Nuclear Must-Off 처리 (개별 발전기 버전)
+# 7. Nuclear Must-Off 처리 (이름 매핑 기반)
 # ============================================================
+
+# ── 호기명 → generator_id 매핑 테이블 ──
+# KPG193 .m 파일의 bus 번호 + 용량 + 초기상태로 대응
+# bus 82=고리/신고리/새울, bus 124=한빛, bus 166=월성/신월성, bus 175=한울/신한울
+const NUCLEAR_NAME_TO_ID = Dict{String,String}(
+    "새울1호기"   => "Nuclear_001",
+    "고리3호기"   => "Nuclear_002",
+    "고리4호기"   => "Nuclear_003",
+    "신고리1호기" => "Nuclear_004",
+    "신고리2호기" => "Nuclear_005",
+    "새울2호기"   => "Nuclear_006",
+    "새울3호기"   => "Nuclear_007",
+    "한빛1호기"   => "Nuclear_008",
+    "한빛2호기"   => "Nuclear_009",
+    "한빛3호기"   => "Nuclear_010",
+    "한빛4호기"   => "Nuclear_011",
+    "한빛5호기"   => "Nuclear_012",
+    "한빛6호기"   => "Nuclear_013",
+    "신한울1호기" => "Nuclear_014",
+    "신한울2호기" => "Nuclear_015",
+    "신월성2호기" => "Nuclear_016",
+    "신월성1호기" => "Nuclear_017",
+    "월성2호기"   => "Nuclear_018",
+    "월성3호기"   => "Nuclear_019",
+    "월성4호기"   => "Nuclear_020",
+    "한울1호기"   => "Nuclear_021",
+    "한울2호기"   => "Nuclear_022",
+    "한울3호기"   => "Nuclear_023",
+    "한울4호기"   => "Nuclear_024",
+    "한울5호기"   => "Nuclear_025",
+    "한울6호기"   => "Nuclear_025",  # 한울5,6 통합 모델 (fallback)
+)
+
 """
-    compute_nuclear_availability_individual(
-        generators, must_off, day;
-        nuclear_unit_mapping=nothing
-    ) -> Vector{ThermalGenerator}
+    apply_nuclear_must_off(generators, must_off, day) -> (adjusted, offline_names)
 
-특정 날짜의 원전 정비 일정에 따라 개별 원전 발전기의 가용 여부를 결정.
-정비 중인 원전: pmin=0, pmax=0 으로 설정.
+특정 날짜(연중 일수)의 원전 정비 일정에 따라 **이름 매핑 기반으로**
+해당 발전기를 pmin=0, pmax=0 으로 설정.
 
-must_off DataFrame 컬럼: unit_name, off_start_day, off_end_day
-generators: 전체 발전기 벡터 (Nuclear 포함 122기)
+## 매핑 과정
+1. must_off에서 해당 날짜에 정비 중인 호기명 수집 (예: "고리4호기")
+2. NUCLEAR_NAME_TO_ID로 generator_id 변환 (예: "Nuclear_003")
+3. generators 벡터에서 해당 name을 찾아 용량을 0으로 설정
+
+## 반환
+- adjusted: 수정된 generators 벡터
+- offline_names: 정비 중인 (호기명, generator_id) 쌍 목록
 """
-function compute_nuclear_availability_individual(
-        generators::Vector{ThermalGenerator},
-        must_off::DataFrame,
-        day::Int)
-
-    # 해당 날짜에 정비 중인 원전 호기 찾기
-    offline_units = Set{String}()
+function apply_nuclear_must_off(generators::Vector{ThermalGenerator},
+                                must_off::DataFrame,
+                                day::Int)
+    # 1. 해당 날짜에 정비 중인 호기명 수집
+    offline_unit_names = String[]
     for row in eachrow(must_off)
         if row.off_start_day <= day <= row.off_end_day
-            push!(offline_units, String(row.unit_name))
+            push!(offline_unit_names, String(row.unit_name))
         end
     end
 
-    # 원전 발전기 인덱스 목록
-    nuclear_indices = findall(g -> g.fuel == "Nuclear", generators)
-    n_nuclear = length(nuclear_indices)
+    # 2. 호기명 → generator_id 변환
+    offline_gen_ids = Set{String}()
+    offline_pairs = Tuple{String,String}[]
+    for uname in offline_unit_names
+        if haskey(NUCLEAR_NAME_TO_ID, uname)
+            gen_id = NUCLEAR_NAME_TO_ID[uname]
+            push!(offline_gen_ids, gen_id)
+            push!(offline_pairs, (uname, gen_id))
+        else
+            @warn "원전 매핑 실패: '$uname' → 매핑 테이블에 없음"
+        end
+    end
 
-    # 정비 호기 수만큼 원전 발전기를 offline 처리
-    # (정비 호기명과 Nuclear_XXX 매핑은 순서 기반)
-    n_offline = length(offline_units)
-
+    # 3. 해당 generator를 pmin=0, pmax=0 으로 설정
     adjusted = copy(generators)
-    offline_count = 0
-    for idx in nuclear_indices
-        if offline_count < n_offline
-            adjusted[idx] = adjust_generator_capacity(generators[idx];
-                                                       pmin=0.0, pmax=0.0)
-            offline_count += 1
+    for (i, gen) in enumerate(generators)
+        if gen.name in offline_gen_ids
+            adjusted[i] = adjust_generator_capacity(gen; pmin=0.0, pmax=0.0)
         end
     end
 
-    return adjusted
+    return adjusted, offline_pairs
 end
 
-# 기존 호환: 단순 가용용량 계산
+# 하위 호환: compute_nuclear_availability (총량 기반)
 function compute_nuclear_availability(must_off::DataFrame, day::Int;
                                        unit_capacity::Float64=1000.0,
                                        total_units::Int=25,

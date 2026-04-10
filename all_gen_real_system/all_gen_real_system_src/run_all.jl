@@ -129,29 +129,16 @@ function main()
 
         re_total = day.solar .+ day.wind
 
-        # ── 원전 정비 반영 ──
+        # ── 원전 정비 반영 (이름 매핑 기반) ──
         day_of_year = Dates.dayofyear(Date(date_str))
-        nuc_avail = compute_nuclear_availability(must_off, day_of_year;
-                                                  total_units=25)
-        adjusted_gens = copy(generators)
-        # 원전 가용용량에 맞게 조정
-        nuclear_indices = findall(g -> g.fuel == "Nuclear", generators)
-        offline_count = 0
-        for row in eachrow(must_off)
-            if row.off_start_day <= day_of_year <= row.off_end_day
-                offline_count += 1
-            end
-        end
-        # offline 수만큼 원전을 꺼기
-        for (i, idx) in enumerate(nuclear_indices)
-            if i <= offline_count
-                adjusted_gens[idx] = adjust_generator_capacity(generators[idx];
-                                                                pmin=0.0, pmax=0.0)
-            end
-        end
+        adjusted_gens, offline_pairs = apply_nuclear_must_off(generators, must_off, day_of_year)
 
         nuc_total_pmax = sum(g.pmax for g in adjusted_gens if g.fuel == "Nuclear")
+        offline_count = length(offline_pairs)
         println("  Nuclear: $(offline_count)기 정비, 가용 $(round(nuc_total_pmax)) MW")
+        for (uname, gid) in offline_pairs
+            println("    OFF: $uname -> $gid")
+        end
 
         # PW cost 재계산 (원전 용량 변경)
         pw_costs = compute_piecewise_costs(adjusted_gens, gencost_dict; S=4)
