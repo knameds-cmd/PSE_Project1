@@ -20,7 +20,7 @@
 # ============================================================
 
 using JuMP
-using HiGHS
+using Gurobi
 import MathOptInterface as MOI
 
 # ============================================================
@@ -174,7 +174,7 @@ function solve_post_ed(input::PostEDInput;
     use_piecewise = !isempty(pw_costs) && length(pw_costs) == G
 
     # ── JuMP 모델 ──
-    model = Model(HiGHS.Optimizer)
+    model = Model(Gurobi.Optimizer)
     set_silent(model)
 
     # ── 열발전 변수 (Piecewise Linear 지원) ──

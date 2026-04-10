@@ -12,57 +12,7 @@ using Statistics
 using Dates
 
 # ============================================================
-# 1. 시간축 통일
-# ============================================================
-"""
-    unify_time_index!(df::DataFrame) -> DataFrame
-
-거래시간(끝점 표시)을 date-hour 형식으로 통일.
-hour=1 → 00:00~01:00 구간 → 내부 인덱스 hour_idx=1 (00시)
-"""
-function unify_time_index!(df::DataFrame)
-    if hasproperty(df, :hour)
-        if minimum(df.hour) >= 1 && maximum(df.hour) <= 24
-            df.hour_idx = df.hour .- 1
-        else
-            df.hour_idx = df.hour
-        end
-    end
-    return df
-end
-
-# ============================================================
-# 2. 결측·중복 처리
-# ============================================================
-"""
-    clean_timeseries!(df::DataFrame) -> DataFrame
-"""
-function clean_timeseries!(df::DataFrame)
-    unique!(df)
-    for col in names(df)
-        if eltype(df[!, col]) <: Union{Missing, Number}
-            vals = df[!, col]
-            for i in 1:length(vals)
-                if ismissing(vals[i])
-                    prev_idx = findprev(!ismissing, vals, i - 1)
-                    next_idx = findnext(!ismissing, vals, i + 1)
-                    if !isnothing(prev_idx) && !isnothing(next_idx)
-                        w = (i - prev_idx) / (next_idx - prev_idx)
-                        vals[i] = vals[prev_idx] * (1 - w) + vals[next_idx] * w
-                    elseif !isnothing(prev_idx)
-                        vals[i] = vals[prev_idx]
-                    elseif !isnothing(next_idx)
-                        vals[i] = vals[next_idx]
-                    end
-                end
-            end
-        end
-    end
-    return df
-end
-
-# ============================================================
-# 3. 대표일 12일 선정
+# 1. 대표일 12일 선정
 # ============================================================
 struct DayProfile
     date::String
@@ -156,6 +106,72 @@ function select_representative_days(profiles::Vector{DayProfile}; per_season::In
     end
 
     return unique(selected)
+end
+
+# ============================================================
+# 3.1 Train/Test/Buffer split — §10
+# ============================================================
+"""
+    split_train_test_buffer(profiles::Vector{DayProfile};
+                            per_season_test::Int=3,
+                            per_season_train::Int=25,
+                            buffer_days::Int=3) -> NamedTuple
+
+대표일(test) 12일 + 시간적 leakage 방지 buffer (±3일) + 계절균형 train (계절당 25일).
+
+반환:
+- test_dates    : Vector{Date} (12일)
+- train_dates   : Vector{Date} (≈100일, 계절균형 stratified)
+- buffer_dates  : Vector{Date} (제외된 일자)
+- season_label  : Dict(date => Int)  (1=spring,2=summer,3=fall,4=winter)
+"""
+function split_train_test_buffer(profiles::Vector{DayProfile};
+                                  per_season_test::Int=3,
+                                  per_season_train::Int=25,
+                                  buffer_days::Int=3)
+    test_strs = select_representative_days(profiles; per_season=per_season_test)
+    test_dates = [Date(s) for s in test_strs]
+
+    buffer_set = Set{Date}()
+    for d in test_dates
+        for k in 1:buffer_days
+            push!(buffer_set, d - Day(k))
+            push!(buffer_set, d + Day(k))
+        end
+    end
+
+    season_idx = Dict("spring"=>1, "summer"=>2, "fall"=>3, "winter"=>4)
+    by_season = Dict{String, Vector{Date}}("spring"=>Date[], "summer"=>Date[],
+                                            "fall"=>Date[], "winter"=>Date[])
+    season_label_full = Dict{Date,Int}()
+    for p in profiles
+        d = Date(p.date)
+        season_label_full[d] = season_idx[p.season]
+        if d in test_dates || d in buffer_set
+            continue
+        end
+        push!(by_season[p.season], d)
+    end
+
+    train_dates = Date[]
+    for s in ["spring", "summer", "fall", "winter"]
+        candidates = sort(by_season[s])
+        n = min(per_season_train, length(candidates))
+        if n == 0
+            continue
+        end
+        step = max(1, div(length(candidates), n))
+        picked = candidates[1:step:end][1:min(n, length(candidates[1:step:end]))]
+        append!(train_dates, picked)
+    end
+    sort!(train_dates)
+
+    return (
+        test_dates    = test_dates,
+        train_dates   = train_dates,
+        buffer_dates  = sort(collect(buffer_set)),
+        season_label  = season_label_full,
+    )
 end
 
 # ============================================================
@@ -268,22 +284,6 @@ function compute_actual_mc_matrix(generators::Vector{ThermalGenerator},
     return mc_matrix
 end
 
-# 기존 코드 호환: fuel_prices 기반 함수
-function build_effective_mc_matrix(generators::Vector{ThermalGenerator},
-                                   fuel_prices::Dict{String,Float64},
-                                   T::Int)
-    G = length(generators)
-    mc_matrix = zeros(G, T)
-    for g in 1:G
-        mc_matrix[g, :] .= generators[g].marginal_cost
-    end
-    return mc_matrix
-end
-
-# compute_effective_mc 호환 (calibrate.jl에서 호출됨)
-function compute_effective_mc(cluster::ThermalGenerator, fuel_price::Float64)
-    return cluster.marginal_cost
-end
 
 # ============================================================
 # 6. 더미 연료가격 (호환용)
@@ -384,22 +384,6 @@ function apply_nuclear_must_off(generators::Vector{ThermalGenerator},
     return adjusted, offline_pairs
 end
 
-# 하위 호환: compute_nuclear_availability (총량 기반)
-function compute_nuclear_availability(must_off::DataFrame, day::Int;
-                                       unit_capacity::Float64=1000.0,
-                                       total_units::Int=25,
-                                       min_load_ratio::Float64=0.95)
-    offline_count = 0
-    for row in eachrow(must_off)
-        if row.off_start_day <= day <= row.off_end_day
-            offline_count += 1
-        end
-    end
-    available_units = total_units - offline_count
-    pmax = available_units * unit_capacity
-    pmin = pmax * min_load_ratio
-    return (pmin=pmin, pmax=pmax)
-end
 
 # ============================================================
 # 8. 구간별 선형 근사 (Piecewise Linear) — gencost 기반

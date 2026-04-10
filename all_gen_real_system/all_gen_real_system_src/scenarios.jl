@@ -1,18 +1,8 @@
 # ============================================================
-# scenarios.jl  ─  4개 시나리오 + β 민감도 분석 + 몬테카를로 + 출력제한 분석
+# scenarios.jl  ─  4개 시나리오 + β/ρ 민감도 + 몬테카를로 + 출력제한 분석
 # ============================================================
-# 문서 참조: 02_프로젝트_수행 §3.4, mainland_re_bid_blocks §2.3
-#
-# 시나리오:
-#   Case A (zero):         모든 블록 b_{k,t} = 0 원
-#   Case B (floor):        모든 블록 b_{k,t} = BidFloor
-#   Case C (mixed):        Low = BidFloor, Mid = 0.5×BidFloor, High = 0 원
-#   Case D (conservative): Low = 0.5×BidFloor, Mid = 0.25×BidFloor, High = 0 원
-#
-# β 민감도: 1.5 / 2.0 / 2.5 (하한가 계수)
-# 입찰참여율 민감도: ρ = 0.1 / 0.2 / 0.3 / 0.5
-# [개선 4c] 몬테카를로: Uniform[BidFloor, 0] 확률적 입찰가
-# [개선 6] 출력제한 분석: 시나리오별 curtailment 지표
+# v2: §2.3 BidderType mixture, §3 Case_A_zero=ρ=0 baseline,
+#     §6 Beta(α,β) mixture + common shock MC
 # ============================================================
 # 의존: types.jl, build_pre_ed.jl, build_post_ed.jl (상위에서 include 완료)
 # ============================================================
@@ -21,35 +11,29 @@ using Printf
 using DataFrames
 using Statistics
 using Random
+using Distributions
 
 # ============================================================
 # 1. 시나리오 정의
 # ============================================================
-"""
-    ScenarioConfig
-
-시나리오 설정 구조체.
-"""
 struct ScenarioConfig
-    name::String        # 시나리오 이름 (예: "Case_A_zero")
-    scenario::String    # build_mainland_re_blocks의 scenario 인자
-    beta::Float64       # 하한가 계수
-    rho_pv::Float64     # 태양광 입찰참여율
-    rho_w::Float64      # 풍력 입찰참여율
-    rec_price::Float64  # REC 평균가격 [원/kWh]
+    name::String
+    scenario::String
+    beta::Float64
+    rho_pv::Float64
+    rho_w::Float64
+    rec_price::Float64
 end
 
 """
-    default_scenarios(; beta=2.0, rho_pv=0.3, rho_w=0.3, rec_price=80.0) -> Vector{ScenarioConfig}
-
-기본 4개 시나리오 설정을 생성.
+§3 — Case_A_zero 는 입찰참여 자체가 없는(ρ=0) baseline.
 """
 function default_scenarios(; beta::Float64=2.0,
                             rho_pv::Float64=0.3,
                             rho_w::Float64=0.3,
                             rec_price::Float64=80.0)
     return ScenarioConfig[
-        ScenarioConfig("Case_A_zero",         "zero",         beta, rho_pv, rho_w, rec_price),
+        ScenarioConfig("Case_A_zero",         "zero",         beta, 0.0,    0.0,   rec_price),
         ScenarioConfig("Case_B_floor",        "floor",        beta, rho_pv, rho_w, rec_price),
         ScenarioConfig("Case_C_mixed",        "mixed",        beta, rho_pv, rho_w, rec_price),
         ScenarioConfig("Case_D_conservative", "conservative", beta, rho_pv, rho_w, rec_price),
@@ -57,14 +41,38 @@ function default_scenarios(; beta::Float64=2.0,
 end
 
 # ============================================================
-# 2. 출력제한 분석 (개선사항 6)
+# 1.1 Bidder Types — §2.3
 # ============================================================
-"""
-    analyze_curtailment(curtailment::Vector{Float64},
-                        smp::Vector{Float64}) -> CurtailmentAnalysis
+function default_bidder_types()
+    return BidderType[
+        BidderType("aggressive",   0.30, (2.0, 5.0), (0.6, 0.3, 0.1)),
+        BidderType("moderate",     0.40, (3.0, 3.0), (0.4, 0.4, 0.2)),
+        BidderType("conservative", 0.20, (5.0, 2.0), (0.2, 0.4, 0.4)),
+        BidderType("PPA_locked",   0.10, (8.0, 1.5), (0.1, 0.3, 0.6)),
+    ]
+end
 
-출력제한 벡터와 SMP 벡터로 출력제한 분석을 수행.
-"""
+const POLICY_PENETRATION_SCENARIOS = Dict{String, NTuple{4,Float64}}(
+    "S1_Early"      => (0.50, 0.30, 0.15, 0.05),
+    "S2_Mature"     => (0.30, 0.40, 0.20, 0.10),
+    "S3_Aggressive" => (0.15, 0.35, 0.30, 0.20),
+)
+
+function bidder_types_for_scenario(name::String)
+    haskey(POLICY_PENETRATION_SCENARIOS, name) ||
+        error("Unknown policy penetration scenario: $name. " *
+              "Choices: $(collect(keys(POLICY_PENETRATION_SCENARIOS)))")
+    shares = POLICY_PENETRATION_SCENARIOS[name]
+    base = default_bidder_types()
+    return BidderType[
+        BidderType(base[i].name, shares[i], base[i].beta_dist, base[i].w_blocks)
+        for i in 1:length(base)
+    ]
+end
+
+# ============================================================
+# 2. 출력제한 분석
+# ============================================================
 function analyze_curtailment(curtailment::Vector{Float64},
                               smp::Vector{Float64})
     T = length(curtailment)
@@ -72,8 +80,6 @@ function analyze_curtailment(curtailment::Vector{Float64},
     hours = count(c -> c > 1e-3, curtailment)
     max_curt = maximum(curtailment)
 
-    # SMP와의 상관계수 (Pearson)
-    # 출력제한이 전혀 없으면 상관계수 계산 불가
     if hours > 1 && std(curtailment) > 1e-6 && std(smp) > 1e-6
         corr = cor(curtailment, smp)
     else
@@ -86,40 +92,27 @@ end
 # ============================================================
 # 3. 시나리오 결과 구조
 # ============================================================
-"""
-    ScenarioResult
-
-단일 시나리오 결과.
-"""
 struct ScenarioResult
     config::ScenarioConfig
     post_result::PostEDResult
-    delta_smp::Dict{String, Any}    # compute_delta_smp 결과
-    metrics::ValidationMetrics      # Post SMP vs Pre SMP 비교 (방향성 분석)
-    curtailment::CurtailmentAnalysis  # [개선 6] 출력제한 분석
+    delta_smp::Dict{String, Any}
+    metrics::ValidationMetrics
+    curtailment::CurtailmentAnalysis
 end
 
 # ============================================================
 # 4. 시나리오 일괄 실행
 # ============================================================
-"""
-    run_scenarios(pre_input::PreEDInput,
-                  pre_result::EDResult,
-                  avail_pv::Vector{Float64},
-                  avail_w::Vector{Float64};
-                  scenarios=nothing,
-                  pw_costs=PiecewiseCost[],
-                  re_pmin_frac=0.1) -> Vector{ScenarioResult}
-
-설정된 시나리오들을 순차 실행하고 결과를 반환.
-"""
 function run_scenarios(pre_input::PreEDInput,
                        pre_result::EDResult,
                        avail_pv::Vector{Float64},
                        avail_w::Vector{Float64};
                        scenarios::Union{Nothing, Vector{ScenarioConfig}}=nothing,
                        pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
-                       re_pmin_frac::Float64=0.1)
+                       re_pmin_frac::Float64=0.1,
+                       installed_pv::Float64=0.0,
+                       installed_w::Float64=0.0,
+                       epsilon_nonbid::Float64=100.0)
     if isnothing(scenarios)
         scenarios = default_scenarios()
     end
@@ -130,28 +123,30 @@ function run_scenarios(pre_input::PreEDInput,
         println("  [$i/$(length(scenarios))] 시나리오: $(sc.name)")
         println("    β=$(sc.beta), ρ_PV=$(sc.rho_pv), ρ_W=$(sc.rho_w), scenario=$(sc.scenario)")
 
-        # Post ED 입력 생성
+        # §3: Case_A_zero (ρ=0) → bidding 비활성
+        is_zero_case = (sc.rho_pv == 0.0 && sc.rho_w == 0.0)
+
         post_input = make_post_input(
             pre_input, avail_pv, avail_w;
             rho_pv=sc.rho_pv, rho_w=sc.rho_w,
             rec_price=sc.rec_price, beta=sc.beta,
-            scenario=sc.scenario
+            scenario=sc.scenario,
+            installed_pv=installed_pv, installed_w=installed_w,
         )
 
-        # Post ED 풀기
         post_result = solve_post_ed(post_input;
                                      pw_costs=pw_costs,
-                                     re_pmin_frac=re_pmin_frac)
+                                     re_pmin_frac=re_pmin_frac,
+                                     epsilon_nonbid=epsilon_nonbid,
+                                     bidding_active=!is_zero_case)
 
         if post_result.base.status != :OPTIMAL
             @warn "  시나리오 $(sc.name) 실패"
             continue
         end
 
-        # LP dual 기반 Post SMP (개선 5: 오염 없음)
         post_smp = determine_post_smp(post_result, post_input, pre_input)
 
-        # SMP가 반영된 PostEDResult 재구성
         adjusted_base = EDResult(
             post_result.base.T,
             post_result.base.generation,
@@ -164,13 +159,8 @@ function run_scenarios(pre_input::PreEDInput,
         adjusted_post = PostEDResult(adjusted_base, post_result.re_dispatch,
                                      post_result.re_block_names, post_result.curtailment)
 
-        # ΔSMP 분석
         delta = compute_delta_smp(pre_result, adjusted_post)
-
-        # Post SMP 검증지표 (Pre SMP 대비)
         metrics = compute_metrics(adjusted_post.base.smp, pre_result.smp)
-
-        # [개선 6] 출력제한 분석
         curt_analysis = analyze_curtailment(adjusted_post.curtailment, adjusted_post.base.smp)
 
         push!(results, ScenarioResult(sc, adjusted_post, delta, metrics, curt_analysis))
@@ -181,6 +171,18 @@ function run_scenarios(pre_input::PreEDInput,
             @printf("    → 출력제한: %.0f MWh (%d시간)\n",
                     curt_analysis.total_mwh, curt_analysis.hours)
         end
+
+        # §11 sanity check: Case_A_zero → Pre-ED 와 SMP 동치
+        if is_zero_case
+            max_dev = maximum(abs.(adjusted_post.base.smp .- pre_result.smp))
+            if max_dev > 1.0
+                @warn "[Compatibility check] Case_A_zero 의 SMP 가 Pre-ED 와 " *
+                      "$(round(max_dev, digits=2)) 원/MWh 차이 — bidding=off 경로 점검 필요"
+            else
+                println("    ✓ baseline 일치 검증: max|SMP_post_A − SMP_pre| = " *
+                        "$(round(max_dev, digits=4)) 원/MWh")
+            end
+        end
     end
 
     return results
@@ -189,18 +191,6 @@ end
 # ============================================================
 # 5. β 민감도 분석
 # ============================================================
-"""
-    run_beta_sensitivity(pre_input, pre_result, avail_pv, avail_w;
-                         betas=[1.5, 2.0, 2.5],
-                         scenario="mixed",
-                         rho_pv=0.3, rho_w=0.3,
-                         rec_price=80.0,
-                         pw_costs=PiecewiseCost[],
-                         re_pmin_frac=0.1) -> Vector{ScenarioResult}
-
-β(하한가 계수) 민감도 분석을 수행.
-동일 시나리오(예: mixed)에서 β만 변경하여 효과를 비교.
-"""
 function run_beta_sensitivity(pre_input::PreEDInput,
                                pre_result::EDResult,
                                avail_pv::Vector{Float64},
@@ -211,7 +201,9 @@ function run_beta_sensitivity(pre_input::PreEDInput,
                                rho_w::Float64=0.3,
                                rec_price::Float64=80.0,
                                pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
-                               re_pmin_frac::Float64=0.1)
+                               re_pmin_frac::Float64=0.1,
+                               installed_pv::Float64=0.0,
+                               installed_w::Float64=0.0)
     configs = ScenarioConfig[
         ScenarioConfig("beta_$(b)_$(scenario)", scenario, b, rho_pv, rho_w, rec_price)
         for b in betas
@@ -219,22 +211,13 @@ function run_beta_sensitivity(pre_input::PreEDInput,
 
     return run_scenarios(pre_input, pre_result, avail_pv, avail_w;
                          scenarios=configs, pw_costs=pw_costs,
-                         re_pmin_frac=re_pmin_frac)
+                         re_pmin_frac=re_pmin_frac,
+                         installed_pv=installed_pv, installed_w=installed_w)
 end
 
 # ============================================================
 # 6. 입찰참여율 민감도 분석
 # ============================================================
-"""
-    run_rho_sensitivity(pre_input, pre_result, avail_pv, avail_w;
-                        rhos=[0.1, 0.2, 0.3, 0.5],
-                        scenario="mixed", beta=2.0, rec_price=80.0,
-                        pw_costs=PiecewiseCost[],
-                        re_pmin_frac=0.1) -> Vector{ScenarioResult}
-
-입찰참여율(ρ) 민감도 분석.
-태양광과 풍력에 동일한 ρ를 적용.
-"""
 function run_rho_sensitivity(pre_input::PreEDInput,
                               pre_result::EDResult,
                               avail_pv::Vector{Float64},
@@ -244,7 +227,9 @@ function run_rho_sensitivity(pre_input::PreEDInput,
                               beta::Float64=2.0,
                               rec_price::Float64=80.0,
                               pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
-                              re_pmin_frac::Float64=0.1)
+                              re_pmin_frac::Float64=0.1,
+                              installed_pv::Float64=0.0,
+                              installed_w::Float64=0.0)
     configs = ScenarioConfig[
         ScenarioConfig("rho_$(r)_$(scenario)", scenario, beta, r, r, rec_price)
         for r in rhos
@@ -252,79 +237,109 @@ function run_rho_sensitivity(pre_input::PreEDInput,
 
     return run_scenarios(pre_input, pre_result, avail_pv, avail_w;
                          scenarios=configs, pw_costs=pw_costs,
-                         re_pmin_frac=re_pmin_frac)
+                         re_pmin_frac=re_pmin_frac,
+                         installed_pv=installed_pv, installed_w=installed_w)
 end
 
 # ============================================================
-# 7. 몬테카를로 시뮬레이션 (개선사항 4c)
+# 7. 몬테카를로 시뮬레이션 — §6 Beta mixture + common shock
 # ============================================================
-"""
-    run_monte_carlo_scenarios(pre_input, pre_result, avail_pv, avail_w;
-        n_samples=100, beta=2.0, rec_price=80.0,
-        rho_pv=0.3, rho_w=0.3, seed=42,
-        pw_costs=PiecewiseCost[],
-        re_pmin_frac=0.1) -> MonteCarloResult
-
-확률적 입찰가 분포에서 몬테카를로 시뮬레이션을 수행.
-
-각 샘플에서 블록별 입찰가를 Uniform[BidFloor, 0]에서 독립 추출.
-사업자별 입찰 전략의 이질성을 확률적으로 반영.
-"""
 function run_monte_carlo_scenarios(pre_input::PreEDInput,
                                     pre_result::EDResult,
                                     avail_pv::Vector{Float64},
                                     avail_w::Vector{Float64};
-                                    n_samples::Int=100,
+                                    n_samples::Int=200,
                                     beta::Float64=2.0,
                                     rec_price::Float64=80.0,
                                     rho_pv::Float64=0.3,
                                     rho_w::Float64=0.3,
+                                    bidder_types::Union{Nothing, Vector{BidderType}}=nothing,
+                                    common_shock_sd::Float64=0.10,
+                                    installed_pv::Float64=0.0,
+                                    installed_w::Float64=0.0,
                                     seed::Int=42,
                                     pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
-                                    re_pmin_frac::Float64=0.1)
+                                    re_pmin_frac::Float64=0.1,
+                                    epsilon_nonbid::Float64=100.0)
     T = pre_input.base.T
     rng = MersenneTwister(seed)
 
+    if isnothing(bidder_types)
+        bidder_types = default_bidder_types()
+    end
+    J = length(bidder_types)
     bid_floor = -(beta * rec_price * 1000.0)
+    abs_floor = -bid_floor
 
-    # 입찰/비입찰 분리 (한번만 계산)
+    # block-level normalization weights
+    norm_w  = NTuple{3,Float64}((
+        sum(bt.share * bt.w_blocks[1] for bt in bidder_types),
+        sum(bt.share * bt.w_blocks[2] for bt in bidder_types),
+        sum(bt.share * bt.w_blocks[3] for bt in bidder_types),
+    ))
+
     pv_bid_total = rho_pv .* avail_pv
-    w_bid_total  = rho_w .* avail_w
+    w_bid_total  = rho_w  .* avail_w
     re_nonbid = (1.0 - rho_pv) .* avail_pv .+ (1.0 - rho_w) .* avail_w
 
-    # 6블록 가용량 (고정)
     w_pv = (0.4, 0.3, 0.3)
     w_w  = (0.4, 0.3, 0.3)
 
     block_avails = [
-        ("PV_low",  "solar", w_pv[1] .* pv_bid_total),
-        ("PV_mid",  "solar", w_pv[2] .* pv_bid_total),
-        ("PV_high", "solar", w_pv[3] .* pv_bid_total),
-        ("W_low",   "wind",  w_w[1] .* w_bid_total),
-        ("W_mid",   "wind",  w_w[2] .* w_bid_total),
-        ("W_high",  "wind",  w_w[3] .* w_bid_total),
+        ("PV_low",  "solar", w_pv[1] .* pv_bid_total, w_pv[1] * rho_pv * installed_pv, :low),
+        ("PV_mid",  "solar", w_pv[2] .* pv_bid_total, w_pv[2] * rho_pv * installed_pv, :mid),
+        ("PV_high", "solar", w_pv[3] .* pv_bid_total, w_pv[3] * rho_pv * installed_pv, :high),
+        ("W_low",   "wind",  w_w[1]  .* w_bid_total,  w_w[1]  * rho_w  * installed_w,  :low),
+        ("W_mid",   "wind",  w_w[2]  .* w_bid_total,  w_w[2]  * rho_w  * installed_w,  :mid),
+        ("W_high",  "wind",  w_w[3]  .* w_bid_total,  w_w[3]  * rho_w  * installed_w,  :high),
     ]
 
-    all_smp = zeros(n_samples, T)
+    beta_dists = [Beta(bt.beta_dist[1], bt.beta_dist[2]) for bt in bidder_types]
+    shock_dist = Normal(1.0, common_shock_sd)
+
+    all_smp  = zeros(n_samples, T)
     all_curt = zeros(n_samples, T)
     success_count = 0
 
-    println("  몬테카를로 시뮬레이션: $(n_samples)회 샘플링 시작")
+    println("  몬테카를로 시뮬레이션 (Beta mixture + common shock): " *
+            "$(n_samples)회 샘플링 시작")
 
     for s in 1:n_samples
-        # 블록별 랜덤 입찰가: Uniform[bid_floor, 0]
+        u = [rand(rng, beta_dists[j]) for j in 1:J]
+        kappa = max(0.0, rand(rng, shock_dist))
+
+        u_blk = zeros(3)
+        for blk in 1:3
+            num = 0.0
+            for j in 1:J
+                num += bidder_types[j].share * bidder_types[j].w_blocks[blk] * u[j]
+            end
+            u_blk[blk] = norm_w[blk] > 0 ? num / norm_w[blk] : 0.0
+        end
+
+        b_blk = NTuple{3,Float64}((
+            clamp(kappa * (u_blk[1] - 1.0) * abs_floor, bid_floor, 0.0),
+            clamp(kappa * (u_blk[2] - 1.0) * abs_floor, bid_floor, 0.0),
+            clamp(kappa * (u_blk[3] - 1.0) * abs_floor, bid_floor, 0.0),
+        ))
+
         blocks = RenewableBidBlock[]
-        for (name, tech, avail) in block_avails
-            bid_price = rand(rng) * (-bid_floor) + bid_floor  # U[bid_floor, 0]
-            push!(blocks, RenewableBidBlock(name, tech, avail, fill(bid_price, T)))
+        for (name, tech, avail, inst, lvl) in block_avails
+            bid_t = lvl == :low  ? b_blk[1] :
+                    lvl == :mid  ? b_blk[2] : b_blk[3]
+            push!(blocks, RenewableBidBlock(name, tech, avail, fill(bid_t, T), inst))
         end
 
         post_input = PostEDInput(pre_input, blocks, re_nonbid, pre_input.base.demand)
-        post_result = solve_post_ed(post_input; pw_costs=pw_costs, re_pmin_frac=re_pmin_frac)
+        post_result = solve_post_ed(post_input;
+                                     pw_costs=pw_costs,
+                                     re_pmin_frac=re_pmin_frac,
+                                     epsilon_nonbid=epsilon_nonbid,
+                                     bidding_active=true)
 
         if post_result.base.status == :OPTIMAL
             success_count += 1
-            all_smp[s, :] = post_result.base.smp
+            all_smp[s, :]  = post_result.base.smp
             all_curt[s, :] = post_result.curtailment
         end
 
@@ -338,13 +353,12 @@ function run_monte_carlo_scenarios(pre_input::PreEDInput,
         return MonteCarloResult(0, zeros(T), zeros(T), zeros(T), 0.0, zeros(0, T), zeros(T))
     end
 
-    # 유효 샘플만 추출
-    valid_smp = all_smp[1:success_count, :]
+    valid_smp  = all_smp[1:success_count, :]
     valid_curt = all_curt[1:success_count, :]
 
     mean_smp_vec = vec(mean(valid_smp, dims=1))
-    p5_smp  = [quantile(valid_smp[:, t], 0.05) for t in 1:T]
-    p95_smp = [quantile(valid_smp[:, t], 0.95) for t in 1:T]
+    p5_smp   = [quantile(valid_smp[:, t], 0.05) for t in 1:T]
+    p95_smp  = [quantile(valid_smp[:, t], 0.95) for t in 1:T]
     mean_delta = mean(mean_smp_vec .- pre_result.smp)
     mean_curt_vec = vec(mean(valid_curt, dims=1))
 
@@ -358,14 +372,8 @@ function run_monte_carlo_scenarios(pre_input::PreEDInput,
 end
 
 # ============================================================
-# 8. 결과 요약 테이블 생성 (출력제한 포함)
+# 8. 결과 요약 테이블 생성
 # ============================================================
-"""
-    scenario_summary_table(results::Vector{ScenarioResult}) -> DataFrame
-
-시나리오 결과를 요약 DataFrame으로 정리.
-[개선 6] 출력제한 지표 컬럼 추가.
-"""
 function scenario_summary_table(results::Vector{ScenarioResult})
     rows = []
     for r in results
@@ -383,7 +391,6 @@ function scenario_summary_table(results::Vector{ScenarioResult})
             hours_up = r.delta_smp["hours_up"],
             total_re_bid_MWh = sum(r.post_result.re_dispatch),
             total_cost = r.post_result.base.total_cost,
-            # [개선 6] 출력제한 지표
             curtailment_MWh = r.curtailment.total_mwh,
             curtailment_hours = r.curtailment.hours,
             max_curtailment_MW = r.curtailment.max_mw,
@@ -394,15 +401,8 @@ function scenario_summary_table(results::Vector{ScenarioResult})
 end
 
 # ============================================================
-# 9. Pre vs Post 출력제한 비교 (개선사항 6)
+# 9. Pre vs Post 출력제한 비교
 # ============================================================
-"""
-    compare_pre_post_curtailment(pre_result::EDResult,
-                                 scenario_results::Vector{ScenarioResult}) -> DataFrame
-
-Pre-ED와 Post-ED의 출력제한을 비교하는 요약 테이블.
-입찰제 도입이 출력제한을 줄이는 효과 분석.
-"""
 function compare_pre_post_curtailment(pre_result::EDResult,
                                        scenario_results::Vector{ScenarioResult})
     pre_curt_total = sum(pre_result.curtailment)
@@ -432,11 +432,6 @@ end
 # ============================================================
 # 10. 시나리오 결과 출력
 # ============================================================
-"""
-    print_scenario_summary(results::Vector{ScenarioResult}, pre_result::EDResult)
-
-시나리오 비교 결과를 표 형태로 출력.
-"""
 function print_scenario_summary(results::Vector{ScenarioResult}, pre_result::EDResult)
     println("\n  ┌─ 시나리오 비교 요약 ─────────────────────────────────────────────────────────────────┐")
     @printf("  │ %-22s │ %10s │ %10s │ %10s │ %6s │ %6s │ %10s │\n",

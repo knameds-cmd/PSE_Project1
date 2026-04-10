@@ -49,8 +49,6 @@ function adjust_generator_capacity(g::ThermalGenerator;
                             g.must_run, g.marginal_cost)
 end
 
-# 기존 코드 호환
-const adjust_cluster_capacity = adjust_generator_capacity
 
 """
     ThermalUnitSpec
@@ -91,12 +89,43 @@ end
     RenewableBidBlock
 
 재생에너지 입찰 블록 자료형 (Post-revision ED에서 사용).
+- avail: 시간대별 공급가능량 상한 [MW] (길이 = T) — physical availability
+- bid:   시간대별 입찰가격 [원/MWh]   (길이 = T)
+- installed_mw: 이 블록이 점유하는 설비용량 [MW]
+                (§5: Pmin = min(α·installed_mw, avail_t))
+                0.0 이면 fallback (avail × α) 적용
 """
 struct RenewableBidBlock
     name::String            # 블록 이름 (예: "PV_low", "W_high")
     tech::String            # 기술 유형 ("solar" 또는 "wind")
     avail::Vector{Float64}  # 시간대별 공급가능량 [MW]
     bid::Vector{Float64}    # 시간대별 입찰가격 [원/MWh]
+    installed_mw::Float64   # 블록 점유 설비용량 [MW]  (§5)
+end
+
+# 하위호환: 기존 4-인자 생성자 (installed_mw 미지정 → 0.0 → fallback 사용)
+RenewableBidBlock(name::String, tech::String,
+                  avail::Vector{Float64}, bid::Vector{Float64}) =
+    RenewableBidBlock(name, tech, avail, bid, 0.0)
+
+# ============================================================
+# Bidder Type — §2.3 (Heterogeneity 도입)
+# ============================================================
+"""
+    BidderType
+
+재생에너지 입찰사업자 유형 (§2.3 — Bidder Types mixture).
+
+- name      : "aggressive" / "moderate" / "conservative" / "PPA_locked"
+- share     : φ_j (해당 유형이 차지하는 비율; ∑φ_j=1)
+- beta_dist : §6 Beta(α,β) 의 (α,β) — 입찰가 분포 형상.
+- w_blocks  : (low, mid, high) 블록 가중 (§2.3 표). 결정론 고정값.
+"""
+struct BidderType
+    name::String
+    share::Float64                       # φ_j
+    beta_dist::Tuple{Float64,Float64}    # (α,β) for Beta — §6
+    w_blocks::NTuple{3,Float64}          # (low, mid, high) — §2.3
 end
 
 """

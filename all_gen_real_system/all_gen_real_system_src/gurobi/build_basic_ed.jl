@@ -15,7 +15,7 @@
 # ============================================================
 
 using JuMP
-using HiGHS
+using Gurobi
 import MathOptInterface as MOI
 
 # types.jl은 run_basic.jl에서 먼저 include됨 (중복 include 방지)
@@ -55,7 +55,7 @@ function solve_basic_ed(input::EDInput)
     end
 
     # ── JuMP 모델 구성 ──
-    model = Model(HiGHS.Optimizer)
+    model = Model(Gurobi.Optimizer)
     set_silent(model)  # 솔버 출력 억제
 
     # 결정변수: p[g, t] = 클러스터 g의 시간 t 발전량 [MW]

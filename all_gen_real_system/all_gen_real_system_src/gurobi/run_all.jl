@@ -1,6 +1,8 @@
 # ============================================================
 # run_all.jl  ─  전체 파이프라인 v2 (개별 발전기 122기 + real-data)
 # ============================================================
+# Gurobi solver variant
+# ============================================================
 # 8784시간 패널(2024) → train/test split → multi-day calibration
 # → 12개 대표일에서 Pre/Post ED 평가 → 침투도(S1/S2/S3) 시나리오
 # → β·ρ 민감도 → Beta-mixture 몬테카를로
@@ -19,7 +21,7 @@
 #
 # 사용법:
 #   cd PSE_Project1/
-#   julia --project=. all_gen_real_system/all_gen_real_system_src/run_all.jl
+#   julia --project=. all_gen_real_system/all_gen_real_system_src/gurobi/run_all.jl
 # ============================================================
 
 using Printf
@@ -31,14 +33,14 @@ using Random
 
 # ── include 순서 (types.jl 이 최상위) ──
 const SRC_DIR = @__DIR__
-include(joinpath(SRC_DIR, "types.jl"))
-include(joinpath(SRC_DIR, "load_data.jl"))
-include(joinpath(SRC_DIR, "preprocess.jl"))
+include(joinpath(SRC_DIR, "..", "types.jl"))
+include(joinpath(SRC_DIR, "..", "load_data.jl"))
+include(joinpath(SRC_DIR, "..", "preprocess.jl"))
 include(joinpath(SRC_DIR, "build_basic_ed.jl"))
 include(joinpath(SRC_DIR, "build_pre_ed.jl"))
 include(joinpath(SRC_DIR, "build_post_ed.jl"))
-include(joinpath(SRC_DIR, "calibrate.jl"))
-include(joinpath(SRC_DIR, "scenarios.jl"))
+include(joinpath(SRC_DIR, "..", "calibrate.jl"))
+include(joinpath(SRC_DIR, "..", "scenarios.jl"))
 
 # ============================================================
 # CHANGELOG (§11)
@@ -59,7 +61,7 @@ v2 (개별 발전기 122기 + real-data) — 개선계획서 TASK 1~11
   - §11 sanity assert: |SMP_post_A − SMP_pre| < 1
 """
 
-const OUT_DIR = joinpath(SRC_DIR, "..", "all_gen_real_system_outputs")
+const OUT_DIR = joinpath(SRC_DIR, "..", "..", "all_gen_real_system_outputs")
 
 # ============================================================
 # 메인 파이프라인

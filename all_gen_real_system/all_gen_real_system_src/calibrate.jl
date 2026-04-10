@@ -9,14 +9,18 @@
 #
 # Price adder A_{g,s,h}는 UC 미모형 요소(기동·무부하·정지 등)를
 # 부분 흡수하는 계절-시간대별 보정항.
-# 이 모듈은 actual SMP와의 차이를 줄이도록 adder를 반복 추정한다.
 #
-# [개선 1] 교차검증(cross-validation) + 물리적 bounds 검증 추가
+# [v2] §7 활성 marginal 1/n_marg 정규화
+#      §8 Tikhonov L2 shrinkage
+#      §9 curtailment_free calibration purity
+#      §10 Multi-day 3D adder (G×24×S)
 # ============================================================
 # 의존: types.jl, build_pre_ed.jl (상위에서 include 완료)
 # ============================================================
 
 using Statistics
+using Dates
+using Random
 
 # ============================================================
 # 1. 통합 검증지표 계산
@@ -27,22 +31,17 @@ using Statistics
 검증지표 모음.
 """
 struct ValidationMetrics
-    mae::Float64                    # 평균 절대오차 [원/MWh]
-    rmse::Float64                   # 평균제곱근오차 [원/MWh]
-    max_abs_error::Float64          # 최대 절대오차
-    mean_model::Float64             # 모형 평균 SMP
-    mean_actual::Float64            # 실제 평균 SMP
-    hourly_errors::Vector{Float64}  # 시간대별 오차
-    hourly_bias::Vector{Float64}    # 시간대별 편향 (양수=과추정)
-    smp_model::Vector{Float64}      # 모형 SMP 원본 벡터
-    smp_actual::Vector{Float64}     # 실제 SMP 원본 벡터
+    mae::Float64
+    rmse::Float64
+    max_abs_error::Float64
+    mean_model::Float64
+    mean_actual::Float64
+    hourly_errors::Vector{Float64}
+    hourly_bias::Vector{Float64}
+    smp_model::Vector{Float64}
+    smp_actual::Vector{Float64}
 end
 
-"""
-    compute_metrics(smp_model, smp_actual) -> ValidationMetrics
-
-모형 SMP와 실제 SMP의 검증지표를 계산.
-"""
 function compute_metrics(smp_model::Vector{Float64}, smp_actual::Vector{Float64})
     T = length(smp_model)
     @assert length(smp_actual) == T "SMP 벡터 길이 불일치"
@@ -59,7 +58,7 @@ function compute_metrics(smp_model::Vector{Float64}, smp_actual::Vector{Float64}
         mean(smp_model),
         mean(smp_actual),
         errors,
-        errors,  # bias = signed error
+        errors,
         copy(smp_model),
         copy(smp_actual)
     )
@@ -68,21 +67,10 @@ end
 # ============================================================
 # 2. Duration Curve 비교
 # ============================================================
-"""
-    duration_curve(smp::Vector{Float64}) -> Vector{Float64}
-
-SMP를 내림차순 정렬한 지속곡선을 반환.
-"""
 function duration_curve(smp::Vector{Float64})
     return sort(smp, rev=true)
 end
 
-"""
-    duration_curve_error(smp_model, smp_actual) -> Float64
-
-지속곡선 간 평균 절대 차이.
-분포가 비슷한지 검증하는 보조 지표.
-"""
 function duration_curve_error(smp_model::Vector{Float64}, smp_actual::Vector{Float64})
     dc_model  = duration_curve(smp_model)
     dc_actual = duration_curve(smp_actual)
@@ -90,13 +78,8 @@ function duration_curve_error(smp_model::Vector{Float64}, smp_actual::Vector{Flo
 end
 
 # ============================================================
-# 3. 연료원별 SMP 결정횟수 비교 [R8]
+# 3. 연료원별 SMP 결정횟수 비교
 # ============================================================
-"""
-    marginal_fuel_share(fuels::Vector{String}) -> Dict{String, Float64}
-
-한계연료원 벡터에서 연료원별 점유율(%) 계산.
-"""
 function marginal_fuel_share(fuels::Vector{String})
     T = length(fuels)
     counts = Dict{String, Int}()
@@ -111,26 +94,12 @@ function marginal_fuel_share(fuels::Vector{String})
 end
 
 # ============================================================
-# 4. Price Adder 물리적 검증 (개선사항 1)
+# 4. Price Adder 물리적 검증
 # ============================================================
-"""
-    compute_adder_physical_bounds(clusters::Vector{ThermalCluster},
-                                  unit_specs::Vector{ThermalUnitSpec})
-                                  -> Vector{Float64}
-
-클러스터별 Price Adder의 물리적 상한을 계산.
-
-기동비/최소가동시간/호기용량에서 도출:
-  adder_max = startup_cost_원 / min_up_time / pmax_unit
-
-예: LNG CC: 47,400,000원 / 4h / 880MW ≈ 13,466 원/MWh
-
-반환: 길이 G의 벡터 (클러스터별 adder 상한, 원/MWh)
-"""
 function compute_adder_physical_bounds(clusters::Vector{ThermalCluster},
                                         unit_specs::Vector{ThermalUnitSpec})
     G = length(clusters)
-    bounds = fill(Inf, G)  # 기본값: 무한대 (제한 없음)
+    bounds = fill(Inf, G)
 
     spec_dict = Dict(s.name => s for s in unit_specs)
 
@@ -139,7 +108,6 @@ function compute_adder_physical_bounds(clusters::Vector{ThermalCluster},
         if haskey(spec_dict, name)
             spec = spec_dict[name]
             if spec.min_up_time > 0 && spec.pmax_unit > 0
-                # startup_cost는 천원 단위 → 원 단위 변환
                 startup_won = spec.startup_cost * 1000.0
                 bounds[g] = startup_won / spec.min_up_time / spec.pmax_unit
             end
@@ -149,14 +117,6 @@ function compute_adder_physical_bounds(clusters::Vector{ThermalCluster},
     return bounds
 end
 
-"""
-    validate_adder_bounds(adder::Matrix{Float64},
-                          bounds::Vector{Float64},
-                          cluster_names::Vector{String}) -> Bool
-
-Price Adder가 물리적 상한 내에 있는지 검증.
-위반 시 경고를 출력하고 false를 반환.
-"""
 function validate_adder_bounds(adder::Matrix{Float64},
                                 bounds::Vector{Float64},
                                 cluster_names::Vector{String})
@@ -166,7 +126,7 @@ function validate_adder_bounds(adder::Matrix{Float64},
     for g in 1:G
         if bounds[g] < Inf
             max_adder_g = maximum(abs.(adder[g, :]))
-            if max_adder_g > bounds[g] * 1.5  # 50% 여유 허용
+            if max_adder_g > bounds[g] * 1.5
                 @warn "Price Adder 물리적 범위 초과: $(cluster_names[g]) " *
                       "max|adder|=$(round(max_adder_g, digits=0)) > " *
                       "bound=$(round(bounds[g], digits=0)) 원/MWh (×1.5)"
@@ -179,32 +139,16 @@ function validate_adder_bounds(adder::Matrix{Float64},
 end
 
 # ============================================================
-# 5. Price Adder 추정 ─ 반복 보정법 (물리적 bounds 포함)
+# 5. Price Adder 추정 ─ 반복 보정법 (§7+§8+§9)
 # ============================================================
 """
     estimate_price_adder(base_input::EDInput,
                          actual_smp::Vector{Float64};
-                         fuel_prices=nothing,
-                         max_iter=20,
-                         target_mae=5000.0,
-                         learning_rate=0.3,
-                         adder_bounds=nothing,
-                         pw_costs=PiecewiseCost[]) -> (Matrix{Float64}, Vector{ValidationMetrics})
+                         ...) -> (Matrix{Float64}, Vector{ValidationMetrics})
 
-actual SMP와의 차이를 줄이도록 price adder를 반복 추정한다.
-
-## 알고리즘
-1. adder = 0 으로 시작
-2. Pre ED를 풀어 SMP 추출
-3. 클러스터별 시간대별 오차를 adder에 반영
-   - 한계 클러스터(부분 투입)의 adder만 조정
-   - adder[g,t] += learning_rate × (actual_smp[t] - model_smp[t])
-4. [개선 1] adder_bounds로 물리적 범위 clamp
-5. MAE < target_mae 이면 종료, 아니면 2로
-
-## 반환
-- adder: [G × T] 최종 price adder 행렬
-- history: 각 반복의 ValidationMetrics 기록
+§7.4 활성 marginal 집합 + 1/n_marg 정규화
+§8.2 Tikhonov L2 shrinkage
+§9   curtailment_free calibration purity
 """
 function estimate_price_adder(base_input::EDInput,
                                actual_smp::Vector{Float64};
@@ -212,8 +156,10 @@ function estimate_price_adder(base_input::EDInput,
                                max_iter::Int=20,
                                target_mae::Float64=5000.0,
                                learning_rate::Float64=0.3,
+                               l2_shrinkage::Float64=0.05,
                                adder_bounds::Union{Nothing, Vector{Float64}}=nothing,
-                               pw_costs::Vector{PiecewiseCost}=PiecewiseCost[])
+                               pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
+                               curtailment_free::Bool=true)
     T = base_input.T
     G = length(base_input.clusters)
 
@@ -225,45 +171,56 @@ function estimate_price_adder(base_input::EDInput,
     history = ValidationMetrics[]
 
     for iter in 1:max_iter
-        # Pre ED 풀기
+        # §9: curtailment-free 로 calibration purity 확보
         pre_input = make_pre_input(base_input; fuel_prices=fuel_prices, adder=adder)
-        result = solve_pre_ed(pre_input; pw_costs=pw_costs)
+        result = solve_pre_ed(pre_input; pw_costs=pw_costs,
+                                          curtailment_free=curtailment_free)
 
         if result.status != :OPTIMAL
             @warn "Calibration iter $iter: Pre ED 실패"
             break
         end
 
-        # 검증지표
         metrics = compute_metrics(result.smp, actual_smp)
         push!(history, metrics)
 
         println("  [Calibration iter $iter] MAE=$(round(metrics.mae, digits=0)) 원/MWh, " *
                 "RMSE=$(round(metrics.rmse, digits=0)) 원/MWh")
 
-        # 수렴 체크
         if metrics.mae < target_mae
             println("  ✓ 목표 MAE 달성 ($(round(metrics.mae, digits=0)) < $target_mae)")
             break
         end
 
-        # Price adder 업데이트
+        # §7.4 활성 marginal 집합 + 1/n_marg 정규화
         for t in 1:T
             error_t = actual_smp[t] - result.smp[t]
 
+            marg_set = Int[]
             for g in 1:G
                 gen = result.generation[g, t]
                 pmax = base_input.clusters[g].pmax
-                pmin = base_input.clusters[g].must_run ? base_input.clusters[g].pmin : 0.0
+                pmin_g = base_input.clusters[g].must_run ? base_input.clusters[g].pmin : 0.0
+                if gen > pmin_g + 1e-3 && gen < pmax - 1e-3
+                    push!(marg_set, g)
+                end
+            end
 
-                # 부분 투입 클러스터 (한계 클러스터)에만 adder 조정
-                if gen > pmin + 1e-3 && gen < pmax - 1e-3
-                    adder[g, t] += learning_rate * error_t
+            n_marg = length(marg_set)
+            if n_marg > 0
+                share = error_t / n_marg
+                for g in marg_set
+                    adder[g, t] += learning_rate * share
                 end
             end
         end
 
-        # [개선 1] 물리적 bounds로 clamp
+        # §8.2 Tikhonov L2 shrinkage
+        if l2_shrinkage > 0
+            adder .*= (1.0 - l2_shrinkage)
+        end
+
+        # 물리적 bounds clamp
         if !isnothing(adder_bounds)
             for g in 1:G, t in 1:T
                 if adder_bounds[g] < Inf
@@ -277,48 +234,168 @@ function estimate_price_adder(base_input::EDInput,
 end
 
 # ============================================================
-# 6. 교차검증 (Cross-Validation) — 개선사항 1
+# 5b. Multi-day Price Adder 추정 — §10
 # ============================================================
 """
-    CrossValidationResult
+    estimate_price_adder_multi(base_clusters, panel, train_dates, season_label;
+                                ...) -> (Array{Float64,3}, Vector{Float64})
 
-교차검증 결과 구조체.
+§10 다일(panel) 학습 — 3D adder (G, 24, S=4 seasons).
 """
-struct CrossValidationResult
-    train_metrics::Vector{ValidationMetrics}  # fold별 train 지표
-    test_metrics::Vector{ValidationMetrics}   # fold별 test 지표
-    mean_train_mae::Float64
-    mean_test_mae::Float64
-    overfitting_ratio::Float64  # test_mae / train_mae, >1.5 시 과적합 의심
+function estimate_price_adder_multi(base_clusters::Vector{ThermalCluster},
+                                     panel,
+                                     train_dates::Vector{Date},
+                                     season_label::Dict{Date,Int};
+                                     fuel_costs_monthly::Union{Nothing,
+                                         Dict{Tuple{Int,Int,String}, Float64}}=nothing,
+                                     n_epochs::Int=10,
+                                     learning_rate::Float64=0.2,
+                                     l2_shrinkage::Float64=0.05,
+                                     target_mae::Float64=4000.0,
+                                     adder_bounds::Union{Nothing, Vector{Float64}}=nothing,
+                                     pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
+                                     S::Int=4,
+                                     rng::AbstractRNG=Random.default_rng())
+    G = length(base_clusters)
+    T = 24
+    adder = zeros(G, T, S)
+    mae_per_epoch = Float64[]
+
+    if isnothing(fuel_costs_monthly)
+        fuel_costs_monthly = load_fuel_costs_monthly()
+    end
+
+    # day cache
+    day_cache = Dict{Date, NamedTuple}()
+    for d in train_dates
+        day_cache[d] = extract_day_input(panel, d, base_clusters)
+    end
+
+    for epoch in 1:n_epochs
+        update_acc  = zeros(G, T, S)
+        update_cnt  = zeros(Int, S)
+        epoch_err   = 0.0
+        n_eval      = 0
+
+        order = shuffle(rng, collect(eachindex(train_dates)))
+
+        for i in order
+            d = train_dates[i]
+            dd = day_cache[d]
+            s_idx = season_label[d]
+
+            fp = fuel_prices_for_month(fuel_costs_monthly, dd.year, dd.month)
+
+            ed_in = EDInput(T, dd.demand, dd.re_gen, base_clusters)
+            pre_in = make_pre_input(ed_in; fuel_prices=fp, adder=copy(adder[:, :, s_idx]))
+            result = solve_pre_ed(pre_in; pw_costs=pw_costs, curtailment_free=true)
+
+            if result.status != :OPTIMAL
+                @warn "Multi-adder epoch $epoch day $d: Pre ED 실패"
+                continue
+            end
+
+            metrics = compute_metrics(result.smp, dd.smp)
+            epoch_err += metrics.mae
+            n_eval += 1
+
+            # §7.4 활성 marginal + 1/n_marg → s_idx 계절에 누적
+            for t in 1:T
+                error_t = dd.smp[t] - result.smp[t]
+                marg_set = Int[]
+                for g in 1:G
+                    gen = result.generation[g, t]
+                    pmax = base_clusters[g].pmax
+                    pmin_g = base_clusters[g].must_run ? base_clusters[g].pmin : 0.0
+                    if gen > pmin_g + 1e-3 && gen < pmax - 1e-3
+                        push!(marg_set, g)
+                    end
+                end
+                n_marg = length(marg_set)
+                if n_marg > 0
+                    share = error_t / n_marg
+                    for g in marg_set
+                        update_acc[g, t, s_idx] += learning_rate * share
+                    end
+                end
+            end
+            update_cnt[s_idx] += 1
+        end
+
+        # 계절별 평균 update 적용
+        for s in 1:S
+            if update_cnt[s] > 0
+                @views adder[:, :, s] .+= update_acc[:, :, s] ./ update_cnt[s]
+            end
+        end
+
+        # §8.2 L2 shrinkage
+        if l2_shrinkage > 0
+            adder .*= (1.0 - l2_shrinkage)
+        end
+
+        # 물리적 bounds clamp
+        if !isnothing(adder_bounds)
+            for g in 1:G, t in 1:T, s in 1:S
+                if adder_bounds[g] < Inf
+                    adder[g, t, s] = clamp(adder[g, t, s], -adder_bounds[g], adder_bounds[g])
+                end
+            end
+        end
+
+        avg_mae = n_eval > 0 ? epoch_err / n_eval : Inf
+        push!(mae_per_epoch, avg_mae)
+        println("  [Multi-adder epoch $epoch] mean train MAE = " *
+                "$(round(avg_mae, digits=0)) 원/MWh ($(n_eval) days)")
+
+        if avg_mae < target_mae
+            println("  ✓ 목표 train MAE 달성 ($(round(avg_mae, digits=0)) < $target_mae)")
+            break
+        end
+    end
+
+    return adder, mae_per_epoch
 end
 
 """
-    cross_validate_adder(base_input::EDInput,
-                         day_data::Vector{NamedTuple};
-                         fuel_prices=nothing,
-                         max_iter=15,
-                         learning_rate=0.4,
-                         target_mae=3000.0,
-                         adder_bounds=nothing,
-                         pw_costs=PiecewiseCost[]) -> CrossValidationResult
+    adder_slice_for_date(adder3, date, season_label) -> Matrix{Float64}
 
-여러 대표일에서 Leave-One-Out 교차검증을 수행.
-
-## 매개변수
-- day_data: [(demand=..., re_generation=..., actual_smp=..., T=24), ...] 대표일 목록
-  각 원소는 NamedTuple with :demand, :re_generation, :actual_smp fields
-
-## 반환
-- CrossValidationResult: train/test MAE, overfitting ratio
+(G,24,S) adder 에서 date 에 해당하는 (G,24) 슬라이스를 반환.
 """
+function adder_slice_for_date(adder3::Array{Float64,3}, date::Date,
+                               season_label::Dict{Date,Int})
+    s_idx = if haskey(season_label, date)
+        season_label[date]
+    else
+        m = Dates.month(date)
+        m in [3,4,5]   ? 1 :
+        m in [6,7,8]   ? 2 :
+        m in [9,10,11] ? 3 : 4
+    end
+    return adder3[:, :, s_idx]
+end
+
+# ============================================================
+# 6. 교차검증 (Cross-Validation) — §7+§8+§9 반영
+# ============================================================
+struct CrossValidationResult
+    train_metrics::Vector{ValidationMetrics}
+    test_metrics::Vector{ValidationMetrics}
+    mean_train_mae::Float64
+    mean_test_mae::Float64
+    overfitting_ratio::Float64
+end
+
 function cross_validate_adder(base_input::EDInput,
                                day_data::Vector;
                                fuel_prices::Union{Nothing, Dict{String,Float64}}=nothing,
                                max_iter::Int=15,
                                learning_rate::Float64=0.4,
+                               l2_shrinkage::Float64=0.05,
                                target_mae::Float64=3000.0,
                                adder_bounds::Union{Nothing, Vector{Float64}}=nothing,
-                               pw_costs::Vector{PiecewiseCost}=PiecewiseCost[])
+                               pw_costs::Vector{PiecewiseCost}=PiecewiseCost[],
+                               curtailment_free::Bool=true)
     if isnothing(fuel_prices)
         fuel_prices = default_fuel_prices()
     end
@@ -335,11 +412,9 @@ function cross_validate_adder(base_input::EDInput,
     for hold_out in 1:N
         println("  [CV fold $hold_out/$N] 테스트일: $hold_out")
 
-        # 훈련 데이터: hold_out 제외한 나머지
         train_days = [day_data[i] for i in 1:N if i != hold_out]
         test_day = day_data[hold_out]
 
-        # 훈련: 각 훈련일에서 adder를 평균 누적
         G = length(base_input.clusters)
         T = base_input.T
         adder = zeros(G, T)
@@ -349,33 +424,45 @@ function cross_validate_adder(base_input::EDInput,
             count_updates = 0
 
             for dd in train_days
-                # 훈련일 데이터로 EDInput 구성
                 train_input = EDInput(T, dd.demand, dd.re_generation, base_input.clusters)
                 pre_input = make_pre_input(train_input; fuel_prices=fuel_prices, adder=adder)
-                result = solve_pre_ed(pre_input; pw_costs=pw_costs)
+                result = solve_pre_ed(pre_input; pw_costs=pw_costs,
+                                                  curtailment_free=curtailment_free)
 
                 if result.status != :OPTIMAL
                     continue
                 end
 
-                # adder 업데이트
+                # §7.4 활성 marginal + 1/n_marg 정규화
                 for t in 1:T
                     error_t = dd.actual_smp[t] - result.smp[t]
                     total_error += abs(error_t)
                     count_updates += 1
 
+                    marg_set = Int[]
                     for g in 1:G
                         gen = result.generation[g, t]
                         pmax = base_input.clusters[g].pmax
                         pmin_g = base_input.clusters[g].must_run ? base_input.clusters[g].pmin : 0.0
                         if gen > pmin_g + 1e-3 && gen < pmax - 1e-3
-                            adder[g, t] += learning_rate * error_t / length(train_days)
+                            push!(marg_set, g)
+                        end
+                    end
+                    n_marg = length(marg_set)
+                    if n_marg > 0
+                        share = error_t / (n_marg * length(train_days))
+                        for g in marg_set
+                            adder[g, t] += learning_rate * share
                         end
                     end
                 end
             end
 
-            # 물리적 bounds clamp
+            # §8.2 L2 shrinkage
+            if l2_shrinkage > 0
+                adder .*= (1.0 - l2_shrinkage)
+            end
+
             if !isnothing(adder_bounds)
                 for g in 1:G, t in 1:T
                     if adder_bounds[g] < Inf
@@ -390,19 +477,19 @@ function cross_validate_adder(base_input::EDInput,
             end
         end
 
-        # 훈련 성능: 첫 번째 훈련일에서 평가
         dd_train = train_days[1]
         train_input = EDInput(T, dd_train.demand, dd_train.re_generation, base_input.clusters)
         pre_train = make_pre_input(train_input; fuel_prices=fuel_prices, adder=adder)
-        res_train = solve_pre_ed(pre_train; pw_costs=pw_costs)
+        res_train = solve_pre_ed(pre_train; pw_costs=pw_costs,
+                                            curtailment_free=curtailment_free)
         if res_train.status == :OPTIMAL
             push!(train_metrics_list, compute_metrics(res_train.smp, dd_train.actual_smp))
         end
 
-        # 테스트 성능
         test_input = EDInput(T, test_day.demand, test_day.re_generation, base_input.clusters)
         pre_test = make_pre_input(test_input; fuel_prices=fuel_prices, adder=adder)
-        res_test = solve_pre_ed(pre_test; pw_costs=pw_costs)
+        res_test = solve_pre_ed(pre_test; pw_costs=pw_costs,
+                                          curtailment_free=curtailment_free)
         if res_test.status == :OPTIMAL
             push!(test_metrics_list, compute_metrics(res_test.smp, test_day.actual_smp))
         end
@@ -430,62 +517,8 @@ function cross_validate_adder(base_input::EDInput,
 end
 
 # ============================================================
-# 7. 간편 보정: 시간대별 균일 adder
+# 7. Calibration 결과 요약 출력
 # ============================================================
-"""
-    estimate_uniform_adder(base_input::EDInput,
-                           actual_smp::Vector{Float64};
-                           fuel_prices=nothing) -> Matrix{Float64}
-
-1회 Pre ED를 풀고, 시간대별 오차를 전체 투입 클러스터에
-균등하게 분배하는 단순 adder.
-빠른 초기 보정이나 반복법 초기값으로 사용.
-"""
-function estimate_uniform_adder(base_input::EDInput,
-                                 actual_smp::Vector{Float64};
-                                 fuel_prices::Union{Nothing, Dict{String,Float64}}=nothing)
-    T = base_input.T
-    G = length(base_input.clusters)
-
-    if isnothing(fuel_prices)
-        fuel_prices = default_fuel_prices()
-    end
-
-    # adder 없이 1회 풀기
-    pre_input = make_pre_input(base_input; fuel_prices=fuel_prices)
-    result = solve_pre_ed(pre_input)
-
-    adder = zeros(G, T)
-    if result.status != :OPTIMAL
-        @warn "Uniform adder 추정 실패: Pre ED infeasible"
-        return adder
-    end
-
-    # 시간대별 오차를 투입 클러스터에 균등 분배
-    for t in 1:T
-        error_t = actual_smp[t] - result.smp[t]
-        active_count = count(g -> result.generation[g, t] > 1e-3, 1:G)
-        if active_count > 0
-            share = error_t / active_count
-            for g in 1:G
-                if result.generation[g, t] > 1e-3
-                    adder[g, t] = share
-                end
-            end
-        end
-    end
-
-    return adder
-end
-
-# ============================================================
-# 8. Calibration 결과 요약 출력
-# ============================================================
-"""
-    print_calibration_summary(metrics::ValidationMetrics, label::String)
-
-검증지표를 포맷팅하여 출력.
-"""
 function print_calibration_summary(metrics::ValidationMetrics, label::String="")
     println("  ── $label 검증지표 ──")
     println("  · MAE:  $(round(metrics.mae, digits=0)) 원/MWh")

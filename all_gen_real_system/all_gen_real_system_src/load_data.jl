@@ -8,6 +8,7 @@
 using CSV
 using DataFrames
 using Dates
+using Statistics
 
 # ── 상수: 데이터 폴더 경로 ──
 const DATA_RAW       = joinpath(@__DIR__, "..", "all_gen_real_system_data", "raw_data")
@@ -233,7 +234,194 @@ function load_all_data()
 end
 
 # ============================================================
-# 10. 데이터 가용 여부 확인
+# 10. 재생에너지 설비용량 로딩
+# ============================================================
+"""
+    load_renewables_capacity(filepath) -> NamedTuple
+
+renewables_capacity_mw.csv 로딩.
+반환: (solar_mw, wind_mw)
+"""
+function load_renewables_capacity(filepath::String=joinpath(DATA_PROCESSED, "renewables_capacity_mw.csv"))
+    df = CSV.read(filepath, DataFrame)
+    solar_mw = 0.0
+    wind_mw  = 0.0
+    for row in eachrow(df)
+        e = String(row.energy_type)
+        cap = Float64(row.total_capacity_mw)
+        if lowercase(e) == "solar"
+            solar_mw = cap
+        elseif lowercase(e) == "wind"
+            wind_mw = cap
+        end
+    end
+    println("  RE 설비용량: PV=$(round(solar_mw, digits=0)) MW, Wind=$(round(wind_mw, digits=0)) MW")
+    return (solar_mw=solar_mw, wind_mw=wind_mw)
+end
+
+# ============================================================
+# 11. 월별 연료비 Dict 로딩
+# ============================================================
+"""
+    load_fuel_costs_monthly(filepath) -> Dict{Tuple{Int,Int,String}, Float64}
+
+월별 연료비 (year, month, fuel) → 원/Gcal Dict.
+"""
+function load_fuel_costs_monthly(filepath::String=joinpath(DATA_PROCESSED, "fuel_costs.csv"))
+    df = CSV.read(filepath, DataFrame)
+    out = Dict{Tuple{Int,Int,String}, Float64}()
+    for row in eachrow(df)
+        ym = row.year_month
+        if ym isa Date
+            y = Dates.year(ym)
+            m = Dates.month(ym)
+        else
+            parts = split(String(ym), "-")
+            y = parse(Int, parts[1])
+            m = parse(Int, parts[2])
+        end
+        fuel = lowercase(String(row.fuel))
+        out[(y, m, fuel)] = Float64(row.fuel_cost_won_per_gcal)
+    end
+    println("  월별 연료비 $(length(out))건 로딩 완료")
+    return out
+end
+
+"""
+    fuel_prices_for_month(monthly, year, month) -> Dict{String,Float64}
+
+특정 (연,월) 의 fuel → 원/Gcal Dict 를 반환.
+"""
+function fuel_prices_for_month(monthly::Dict{Tuple{Int,Int,String}, Float64},
+                                year::Int, month::Int;
+                                default_lng_chp::Bool=true)
+    fuels = ["nuclear", "coal", "lng", "oil", "hydro"]
+    out = Dict{String,Float64}()
+    for f in fuels
+        out[f] = get(monthly, (year, month, f), 0.0)
+    end
+    if default_lng_chp
+        out["chp"] = out["lng"]
+    end
+    return out
+end
+
+# ============================================================
+# 12. potential 재구성 (§1) — 2024 발전량 ≡ potential 가정
+# ============================================================
+"""
+    reconstruct_potential(df::DataFrame, installed_capacity::NamedTuple) -> DataFrame
+
+발전량을 physical availability (potential) 로 재구성.
+한국 mainland 2024: peak CF < 1 이므로 발전량 ≡ potential 가정.
+"""
+function reconstruct_potential(df::DataFrame, installed_capacity::NamedTuple)
+    result = copy(df)
+    result.potential_pv = Float64.(result.solar_gen)
+    result.potential_w  = Float64.(result.wind_gen)
+    result.cf_pv = result.potential_pv ./ installed_capacity.solar_mw
+    result.cf_w  = result.potential_w  ./ installed_capacity.wind_mw
+
+    n_overflow_pv = count(c -> c > 1.0, result.cf_pv)
+    n_overflow_w  = count(c -> c > 1.0, result.cf_w)
+    if n_overflow_pv > 0
+        @warn "Potential 재구성: solar CF > 1 이 $(n_overflow_pv)건"
+    end
+    if n_overflow_w > 0
+        @warn "Potential 재구성: wind CF > 1 이 $(n_overflow_w)건"
+    end
+    return result
+end
+
+# ============================================================
+# 13. 통합 패널 빌더
+# ============================================================
+"""
+    build_full_year_panel() -> DataFrame
+
+8784시간(2024 윤년) 통합 패널 생성.
+컬럼: date, hour, smp, demand, solar_gen, wind_gen, potential_pv, potential_w,
+      cf_pv, cf_w, year, month, day_of_year
+"""
+function build_full_year_panel()
+    smp_df = load_smp_demand()
+    re_df  = load_renewable()
+    cap    = load_renewables_capacity()
+
+    # 컬럼명 정규화: smp_mainland→smp, demand_mainland→demand
+    if hasproperty(smp_df, :smp_mainland)
+        rename!(smp_df, :smp_mainland => :smp)
+    end
+    if hasproperty(smp_df, :demand_mainland)
+        rename!(smp_df, :demand_mainland => :demand)
+    end
+
+    # 컬럼명 정규화: solar_mainland→solar_gen, wind_mainland→wind_gen
+    if hasproperty(re_df, :solar_mainland)
+        rename!(re_df, :solar_mainland => :solar_gen)
+    end
+    if hasproperty(re_df, :wind_mainland)
+        rename!(re_df, :wind_mainland => :wind_gen)
+    end
+
+    # date 파싱
+    if eltype(smp_df.date) <: AbstractString
+        smp_df.date = Date.(smp_df.date)
+    end
+    if eltype(re_df.date) <: AbstractString
+        re_df.date = Date.(re_df.date)
+    end
+
+    # hour_idx 추가 (없으면)
+    if !hasproperty(smp_df, :hour_idx)
+        smp_df.hour_idx = smp_df.hour .- 1
+    end
+    if !hasproperty(re_df, :hour_idx)
+        re_df.hour_idx = re_df.hour .- 1
+    end
+
+    # 병합
+    df = innerjoin(smp_df, re_df, on=[:date, :hour], makeunique=true)
+
+    # potential 재구성
+    df = reconstruct_potential(df, cap)
+
+    # 시간 인덱스
+    df.year         = Dates.year.(df.date)
+    df.month        = Dates.month.(df.date)
+    df.day_of_year  = Dates.dayofyear.(df.date)
+
+    sort!(df, [:date, :hour])
+    println("  패널 빌드 완료: $(nrow(df))시간 ($(length(unique(df.date)))일)")
+    return df
+end
+
+"""
+    extract_day_input(panel::DataFrame, date::Date,
+                      clusters::Vector{ThermalGenerator}) -> NamedTuple
+
+특정 날짜(date) 의 24h 데이터를 EDInput 빌딩 재료로 추출.
+"""
+function extract_day_input(panel::DataFrame, date::Date,
+                            clusters::Vector{ThermalGenerator})
+    day = filter(:date => ==(date), panel)
+    sort!(day, :hour)
+    @assert nrow(day) == 24 "Day $date has $(nrow(day)) hours (expected 24)"
+    return (
+        T            = 24,
+        demand       = Float64.(day.demand),
+        re_gen       = Float64.(day.potential_pv .+ day.potential_w),
+        potential_pv = Float64.(day.potential_pv),
+        potential_w  = Float64.(day.potential_w),
+        smp          = Float64.(day.smp),
+        year         = Int(day.year[1]),
+        month        = Int(day.month[1]),
+        date         = date,
+    )
+end
+
+# ============================================================
+# 14. 데이터 가용 여부 확인
 # ============================================================
 """
     has_real_data() -> Bool

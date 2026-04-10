@@ -1,0 +1,1459 @@
+% ============================================================
+% report.tex — 재생에너지 입찰제 도입에 따른 SMP 변화 분석
+% 한국 육지계통 개별 발전기 122기 경제급전 모형
+% ============================================================
+% 컴파일: xelatex report.tex (kotex 사용 시)
+%         또는 pdflatex report.tex (kotex 대신 CJK 사용 시)
+% ============================================================
+\documentclass[11pt, a4paper]{article}
+
+% ── 한국어 지원 ──
+\usepackage{kotex}              % XeLaTeX/LuaLaTeX용 한국어 지원
+% kotex이 동작하지 않는 환경에서는 아래를 사용:
+% \usepackage[utf8]{inputenc}
+% \usepackage{CJKutf8}
+
+% ── 수학 패키지 ──
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{bm}
+
+% ── 레이아웃 ──
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── 표·그림 ──
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{tabularx}
+
+% ── 기타 ──
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% ── 하이퍼링크 설정 ──
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=green!50!black,
+    urlcolor=blue!70!black,
+}
+
+% ── 코드 스타일 ──
+\lstset{
+    language=Julia,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue!70!black}\bfseries,
+    commentstyle=\color{green!50!black}\itshape,
+    stringstyle=\color{red!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    breaklines=true,
+    captionpos=b,
+}
+
+% ── 헤더/푸터 ──
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small 재생에너지 입찰제 SMP 분석}
+\fancyhead[R]{\small \thepage}
+\fancyfoot[C]{\small PSE Project -- 개별 발전기 122기 모형}
+
+% ── 수학 연산자 정의 ──
+\DeclareMathOperator*{\argmin}{argmin}
+\DeclareMathOperator*{\argmax}{argmax}
+\newcommand{\mw}{\text{MW}}
+\newcommand{\mwh}{\text{MWh}}
+\newcommand{\won}{\text{원}}
+\newcommand{\kwh}{\text{kWh}}
+\newcommand{\gcal}{\text{Gcal}}
+
+% ============================================================
+\title{
+    \vspace{-2cm}
+    \textbf{재생에너지 입찰제 도입에 따른 \\
+    한국 육지계통 SMP 변화 분석} \\[0.5cm]
+    \large 개별 발전기 122기 경제급전(ED) 모형 \\
+    수학적 정식화 및 구현 보고서
+}
+\author{
+    전력시스템 경제학 프로젝트
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+본 보고서는 한국 육지(mainland) 전력계통에서 재생에너지 입찰제 도입 시
+계통한계가격(SMP)에 미치는 영향을 분석하기 위해 개발된 경제급전(Economic Dispatch, ED)
+모형의 수학적 정식화를 문서화한다.
+모형은 MATPOWER KPG193 기반 개별 발전기 122기를 포함하며,
+Basic ED, Pre-revision ED, Post-revision ED의 3단계로 구성된다.
+각 단계의 목적함수, 제약조건, SMP 도출 방법을 엄밀히 기술하고,
+Price Adder 보정 알고리즘, 구간별 선형 비용 근사, 재생에너지 6블록 입찰 구조,
+Beta 혼합 몬테카를로 시뮬레이션 등의 수학적 세부사항을 제시한다.
+구현은 Julia/JuMP 프레임워크와 HiGHS 선형계획 솔버를 사용하였으며,
+2024년 8,784시간 실데이터를 기반으로 검증하였다.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+% 1. 서론
+% ============================================================
+\section{서론}\label{sec:intro}
+
+\subsection{프로젝트 개요}
+
+본 프로젝트는 한국 전력시장에서 재생에너지(태양광, 풍력) 발전사업자가
+직접 입찰에 참여하는 제도 변경이 계통한계가격(System Marginal Price, SMP)에
+미치는 영향을 정량적으로 분석하는 것을 목적으로 한다.
+
+현행 한국 전력시장(CBP: Cost-Based Pool)에서 재생에너지는
+음의 부하(negative load)로 처리되어 순수요(net demand)에서 차감된다.
+그러나 재생에너지 비중 증가에 따라 출력제한(curtailment)이 빈번해지고,
+시장가격 형성에 재생에너지의 한계비용이 반영되지 못하는 문제가 발생한다.
+이에 따라 재생에너지 입찰참여 제도가 검토되고 있으며,
+본 모형은 이러한 제도 변경의 SMP 효과를 사전 평가한다.
+
+\subsection{한국 육지계통 개요}
+
+분석 대상은 한국 육지(mainland) 전력계통으로, 다음과 같은 특성을 갖는다:
+\begin{itemize}[noitemsep]
+    \item \textbf{발전기}: MATPOWER KPG193 기반 개별 발전기 122기
+    \item \textbf{연료원}: 원자력(Nuclear), 석탄(Coal), LNG, 유류(Oil) 등
+    \item \textbf{재생에너지}: 태양광(PV) 및 풍력(Wind) --- 2024년 설비용량 기준
+    \item \textbf{시장제도}: 비용 기반 풀(CBP) --- 열소비율이 gencost에 내포
+    \item \textbf{분석기간}: 2024년 1월--12월 (8,784시간, 윤년)
+\end{itemize}
+
+\subsection{모형 구조 개요}
+
+모형은 3단계 경제급전 모형으로 구성된다:
+\begin{enumerate}[noitemsep]
+    \item \textbf{Basic ED}: 단순 선형비용 경제급전 (벤치마크)
+    \item \textbf{Pre-revision ED}: 현행 시장규칙 반영 (최소출력, 램프, must-run, Price Adder)
+    \item \textbf{Post-revision ED}: 재생에너지 입찰 블록 포함 (6블록, BidFloor, RE Pmin)
+\end{enumerate}
+각 단계의 SMP는 수급균형 제약의 쌍대변수(dual variable)로 도출되며,
+$\Delta\text{SMP} = \text{SMP}_{\text{post}} - \text{SMP}_{\text{pre}}$를 핵심 분석 지표로 사용한다.
+
+\subsection{표기법}
+
+본 보고서에서 사용하는 주요 표기법은 \Cref{tab:notation}에 정리한다.
+
+\begin{table}[H]
+\centering
+\caption{주요 표기법}\label{tab:notation}
+\small
+\begin{tabularx}{\textwidth}{>{\raggedright}p{3cm} X}
+\toprule
+\textbf{기호} & \textbf{설명} \\
+\midrule
+$\mathcal{G} = \{1, \ldots, G\}$ & 열발전기 집합 ($G=122$) \\
+$\mathcal{T} = \{1, \ldots, T\}$ & 시간 인덱스 집합 ($T=24$, 1일 단위) \\
+$\mathcal{K} = \{1, \ldots, K\}$ & 재생에너지 입찰 블록 집합 ($K=6$) \\
+$\mathcal{S} = \{1, \ldots, S\}$ & 구간별 선형 근사 세그먼트 집합 ($S=4$) \\
+$p_{g,t}$ & 발전기 $g$의 시간 $t$ 발전량 [MW] \\
+$r_{k,t}$ & 입찰 블록 $k$의 시간 $t$ 낙찰량 [MW] \\
+$D_t$ & 시간 $t$의 총 수요 [MW] \\
+$\text{RE}_t$ & 시간 $t$의 재생에너지 발전량 [MW] \\
+$\lambda_t$ & 시간 $t$의 SMP [원/MWh] (수급균형 쌍대변수) \\
+$P_g^{\min}, P_g^{\max}$ & 발전기 $g$의 최소/최대 출력 [MW] \\
+$\text{RU}_g, \text{RD}_g$ & 발전기 $g$의 상향/하향 램프 한계 [MW/h] \\
+$A_{g,t}$ & 발전기 $g$의 시간 $t$ Price Adder [원/MWh] \\
+$\bar{R}_{k,t}$ & 입찰 블록 $k$의 시간 $t$ 공급가능량 [MW] \\
+$b_{k,t}$ & 입찰 블록 $k$의 시간 $t$ 입찰가격 [원/MWh] \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+% ============================================================
+% 2. 데이터 구조
+% ============================================================
+\section{데이터 구조}\label{sec:data}
+
+\subsection{발전기 데이터}
+
+개별 발전기 122기의 데이터는 \texttt{generators.csv}에서 로딩되며,
+각 발전기는 다음 속성을 갖는 \texttt{ThermalGenerator} 구조체로 표현된다:
+
+\begin{table}[H]
+\centering
+\caption{ThermalGenerator 구조체 필드}\label{tab:thermal_gen}
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{필드} & \textbf{단위} & \textbf{설명} \\
+\midrule
+\texttt{name}           & ---   & 발전기 식별자 (예: ``LNG\_001'', ``Nuclear\_003'') \\
+\texttt{fuel}           & ---   & 연료원 (``Nuclear'', ``Coal'', ``LNG'', ``Oil'') \\
+\texttt{pmin}           & MW    & 최소출력 \\
+\texttt{pmax}           & MW    & 최대출력 \\
+\texttt{ramp\_up}       & MW/h  & 상향 램프 한계 \\
+\texttt{ramp\_down}     & MW/h  & 하향 램프 한계 \\
+\texttt{must\_run}      & bool  & must-run 여부 (원자력 = true) \\
+\texttt{marginal\_cost} & 원/MWh & 중점 한계비용 (Basic ED용) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+한국 CBP 시장의 특성상 열소비율(Heat Rate)은 gencost의 2차 비용함수에 내포되어 있으며,
+변동운영비(VOM)는 별도 정산되어 발전비용에 포함되지 않는다.
+
+\subsection{Gencost: 2차 비용함수}\label{sec:gencost}
+
+각 발전기의 비용함수는 \texttt{gencost.csv}에서 로딩되며, 다음과 같은 2차 함수 형태를 갖는다:
+\begin{equation}\label{eq:gencost}
+    C_g(P) = a_g P^2 + b_g P + c_g \qquad [\text{천원/h}]
+\end{equation}
+여기서:
+\begin{itemize}[noitemsep]
+    \item $a_g$: 2차 계수 [천원/MW$^2$h]
+    \item $b_g$: 1차 계수 [천원/MWh]
+    \item $c_g$: 상수항 (무부하비) [천원/h]
+    \item $P$: 발전출력 [MW]
+\end{itemize}
+gencost 계수는 딕셔너리 형태 $\texttt{gencost} : \text{발전기명} \to (a_g, b_g, c_g)$로 저장된다.
+
+\subsection{한계비용(MC) 도출}\label{sec:mc_derivation}
+
+비용함수 \eqref{eq:gencost}로부터 한계비용(Marginal Cost)을 미분으로 도출한다:
+\begin{equation}\label{eq:mc}
+    \text{MC}_g(P) = \frac{dC_g}{dP} = 2a_g P + b_g \qquad [\text{천원/MWh}]
+\end{equation}
+단위 변환(천원 $\to$ 원):
+\begin{equation}\label{eq:mc_won}
+    \boxed{\text{MC}_g(P) = (2a_g P + b_g) \times 1000 \qquad [\text{원/MWh}]}
+\end{equation}
+
+이는 전력시장운영규칙 제2.4.2조의 증분가격(IP) 산정식과 대응된다:
+\begin{equation}\label{eq:ip_rule}
+    \text{IP}_{i,t} = \frac{(2 \times \text{QPC}_i \times \text{DAOS}_{i,t} + \text{LPC}_i)}{\text{TLF}} \times \frac{1}{1000}
+\end{equation}
+여기서 $\text{QPC}_i = a_g$, $\text{LPC}_i = b_g$, $\text{DAOS}_{i,t}$는 실제 운전점,
+$\text{TLF}$는 송전손실계수(본 모형에서 1.0 가정)이다.
+
+\textbf{중점 MC (Basic ED용)}: 발전기의 운전 범위 중점에서 산출하는 초기 추정치:
+\begin{equation}\label{eq:mc_mid}
+    \text{MC}_g^{\text{mid}} = \left(2a_g \cdot \frac{P_g^{\min} + P_g^{\max}}{2} + b_g\right) \times 1000 \qquad [\text{원/MWh}]
+\end{equation}
+
+\textbf{실제 운전점 MC}: ED 풀이 후 실제 발전량 $p_{g,t}$에서 재계산:
+\begin{equation}\label{eq:mc_actual}
+    \text{MC}_g^{\text{actual}}(t) = \begin{cases}
+        (2a_g \cdot p_{g,t} + b_g) \times 1000 & \text{if } p_{g,t} > 10^{-3} \\
+        (2a_g \cdot P_g^{\min} + b_g) \times 1000 & \text{if } p_{g,t} \leq 10^{-3}
+    \end{cases}
+\end{equation}
+
+\subsection{SMP/수요 시계열}
+
+시계열 데이터는 \texttt{smp\_demand.csv}에서 로딩되며, 각 레코드는 다음을 포함한다:
+\begin{itemize}[noitemsep]
+    \item \texttt{date}: 날짜
+    \item \texttt{hour}: 시간 (1--24)
+    \item \texttt{smp\_mainland}: 육지계통 SMP [원/MWh]
+    \item \texttt{demand\_mainland}: 육지계통 수요 [MW]
+\end{itemize}
+
+\subsection{재생에너지 데이터}
+
+재생에너지 발전량은 \texttt{renewables\_generation\_mwh.csv}에서 로딩된다.
+2024년 데이터에서 발전량을 physical availability(potential)로 재구성하되,
+peak 이용률(CF)이 1을 초과하지 않으므로 발전량 $\equiv$ potential로 가정한다:
+\begin{equation}
+    \text{potential}_{t}^{\text{PV}} = \text{solar\_gen}_t, \qquad
+    \text{CF}_t^{\text{PV}} = \frac{\text{potential}_t^{\text{PV}}}{\text{Installed}_{\text{PV}}}
+\end{equation}
+
+\subsection{원전 Must-Off 스케줄}
+
+원전 정비 일정은 \texttt{nuclear\_must\_off.csv}에서 로딩된다.
+호기명(예: ``고리4호기'')을 발전기 ID(예: ``Nuclear\_003'')로 매핑하는 테이블을 사용하여,
+해당 날짜에 정비 중인 원전의 출력을 $P_g^{\min} = P_g^{\max} = 0$으로 설정한다.
+
+\subsection{연료비 및 호기 사양}
+
+Price Adder의 물리적 상한을 검증하기 위해 \texttt{genthermal.csv}에서
+고온기동비(startup cost) $S_g$ [천원], 최소가동시간 $\text{UT}_g$ [시간],
+호기별 최대출력 $P_g^{\text{unit}}$ [MW]을 로딩한다.
+물리적 상한은 다음과 같이 산출된다:
+\begin{equation}\label{eq:adder_bound}
+    \bar{A}_g = \frac{S_g \times 1000}{\text{UT}_g \times P_g^{\text{unit}}} \qquad [\text{원/MWh}]
+\end{equation}
+
+
+% ============================================================
+% 3. Basic Economic Dispatch
+% ============================================================
+\section{Basic Economic Dispatch (Basic ED)}\label{sec:basic_ed}
+
+\subsection{개요}
+
+Basic ED는 가장 단순한 형태의 경제급전 모형으로,
+재생에너지를 음의 부하로 처리하고 단순 선형비용으로 급전하는 벤치마크 모형이다.
+최소출력, 램프 제약, must-run 조건이 없으므로 해석적으로 투명한 SMP를 도출한다.
+
+\subsection{순수요 계산}
+
+재생에너지는 음의 부하(negative load)로 처리하여 순수요를 산출한다:
+\begin{equation}\label{eq:net_demand}
+    D_t^{\text{net}} = D_t - \text{RE}_t \qquad \forall t \in \mathcal{T}
+\end{equation}
+순수요가 음수인 경우(재생에너지 $>$ 수요) 0으로 보정한다:
+\begin{equation}
+    D_t^{\text{net}} \leftarrow \max(0, D_t^{\text{net}})
+\end{equation}
+
+\subsection{수학적 정식화}
+
+\subsubsection{목적함수 (B1)}
+
+총 발전비용을 최소화한다:
+\begin{equation}\label{eq:basic_obj}
+    \boxed{\min_{p_{g,t}} \quad \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} c_g \cdot p_{g,t}}
+\end{equation}
+여기서 $c_g$는 발전기 $g$의 한계비용 [\text{원/MWh}]으로, 시간에 따라 변하지 않는 상수이다.
+구체적으로 $c_g = \text{MC}_g^{\text{mid}}$ (식 \eqref{eq:mc_mid})을 사용한다.
+
+\subsubsection{수급균형 제약 (B2)}
+
+각 시간대에서 총 발전량이 순수요와 일치해야 한다:
+\begin{equation}\label{eq:basic_balance}
+    \sum_{g \in \mathcal{G}} p_{g,t} = D_t^{\text{net}} \qquad \forall t \in \mathcal{T}
+\end{equation}
+
+\subsubsection{출력상한 제약 (B3)}
+
+각 발전기의 출력은 비음이며 최대출력을 초과할 수 없다:
+\begin{equation}\label{eq:basic_bounds}
+    0 \leq p_{g,t} \leq P_g^{\max} \qquad \forall g \in \mathcal{G}, \; \forall t \in \mathcal{T}
+\end{equation}
+
+\subsubsection{SMP 도출 (B4)}
+
+SMP는 수급균형 제약 \eqref{eq:basic_balance}의 쌍대변수(dual variable, shadow price)로 정의된다:
+\begin{equation}\label{eq:basic_smp}
+    \boxed{\lambda_t = \text{dual}\!\left(\sum_{g \in \mathcal{G}} p_{g,t} = D_t^{\text{net}}\right) \qquad \forall t \in \mathcal{T}}
+\end{equation}
+최소화 문제의 등호 제약에서 쌍대변수의 양수 값은
+수요 1\,MW 증가 시 총비용 증가분(원/MWh)을 의미한다.
+
+\subsection{한계연료원 식별}
+
+각 시간대의 한계연료원(marginal fuel)은 부분 투입(partial dispatch) 상태인 발전기 중
+비용이 가장 높은 발전기의 연료원으로 식별된다:
+\begin{equation}
+    g_t^* = \argmax_{g \in \mathcal{G}_t^{\text{marg}}} c_g
+    , \qquad
+    \mathcal{G}_t^{\text{marg}} = \left\{g : 10^{-3} < p_{g,t} < P_g^{\max} - 10^{-3}\right\}
+\end{equation}
+$\mathcal{G}_t^{\text{marg}} = \emptyset$이면 투입된 발전기 중 최고비용 발전기를 한계발전기로 간주한다.
+
+
+% ============================================================
+% 4. Pre-revision Economic Dispatch
+% ============================================================
+\section{Pre-revision Economic Dispatch (Pre-ED)}\label{sec:pre_ed}
+
+\subsection{개요}
+
+Pre-revision ED는 현행 한국 전력시장의 운영규칙을 반영한 모형으로,
+Basic ED에 다음 요소를 추가한다:
+\begin{itemize}[noitemsep]
+    \item \textbf{유효 한계비용}: gencost 기반 MC + Price Adder
+    \item \textbf{최소출력 제약}: must-run 발전기(원전)의 $P_g^{\min}$ 보장
+    \item \textbf{램프 제약}: 시간간 출력 변동 제한
+    \item \textbf{구간별 선형 비용 근사}: 2차 비용함수의 $S$개 구간 분할
+    \item \textbf{출력제한(curtailment)}: 현행 must-run pmin 보전을 위한 RE 사전 cap
+\end{itemize}
+
+\subsection{유효 한계비용}
+
+발전기 $g$의 시간 $t$에서의 유효 한계비용은 다음과 같이 구성된다:
+\begin{equation}\label{eq:effective_mc}
+    \tilde{c}_{g,t} = \text{MC}_g^{\text{eff}}(t) + A_{g,t}
+\end{equation}
+여기서:
+\begin{itemize}[noitemsep]
+    \item $\text{MC}_g^{\text{eff}}(t)$: gencost 기반 유효 한계비용 [원/MWh]
+    \item $A_{g,t}$: Price Adder [원/MWh] --- calibration에서 추정(\Cref{sec:calibrate} 참조)
+\end{itemize}
+
+\subsection{출력제한 (Curtailment) 로직}
+
+\subsubsection{현행 시장규칙 (\texttt{curtailment\_free = false})}
+
+must-run 발전기의 최소출력 합 $P_{\text{must}}^{\min}$을 보전하기 위해
+재생에너지를 사전에 cap한다:
+\begin{align}
+    P_{\text{must}}^{\min} &= \sum_{g \in \mathcal{G}_{\text{must}}} P_g^{\min} \\
+    \text{RE}_t^{\text{eff}} &= \min\!\big(\text{RE}_t, \; D_t - P_{\text{must}}^{\min}\big) \label{eq:re_cap}
+\end{align}
+출력제한량: $\text{curt}_t = \text{RE}_t - \text{RE}_t^{\text{eff}}$
+
+\subsubsection{Calibration 모드 (\texttt{curtailment\_free = true})}
+
+Calibration 단계에서는 Price Adder가 출력제한의 dual pollution을
+흡수하지 않도록 RE를 must-take 상수로 주입한다:
+\begin{equation}
+    \text{RE}_t^{\text{eff}} = \min(\text{RE}_t, D_t)
+\end{equation}
+이 설정은 Adder의 calibration 순도(purity)를 확보하기 위함이다.
+
+\subsection{수학적 정식화 --- 단일 변수 방식}
+
+\subsubsection{순수요}
+\begin{equation}
+    D_t^{\text{net}} = D_t - \text{RE}_t^{\text{eff}} \qquad \forall t \in \mathcal{T}
+\end{equation}
+
+\subsubsection{목적함수 (P2)}
+\begin{equation}\label{eq:pre_obj}
+    \boxed{\min_{p_{g,t}} \quad \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} \tilde{c}_{g,t} \cdot p_{g,t}}
+\end{equation}
+
+\subsubsection{수급균형 제약 (P3)}
+\begin{equation}\label{eq:pre_balance}
+    \sum_{g \in \mathcal{G}} p_{g,t} = D_t^{\text{net}} \qquad \forall t \in \mathcal{T}
+\end{equation}
+
+\subsubsection{출력 제약 (P4)}
+
+must-run 발전기는 최소출력을 보장하고, 비must-run 발전기는 0 이상의 출력을 갖는다:
+\begin{equation}\label{eq:pre_bounds}
+    \begin{cases}
+        P_g^{\min} \leq p_{g,t} \leq P_g^{\max} & \text{if } g \in \mathcal{G}_{\text{must}} \\
+        0 \leq p_{g,t} \leq P_g^{\max}           & \text{if } g \notin \mathcal{G}_{\text{must}}
+    \end{cases}
+    \qquad \forall g, t
+\end{equation}
+
+\subsubsection{램프 제약 (P5)}
+
+연속 시간대 간의 출력 변동을 제한한다:
+\begin{equation}\label{eq:ramp}
+    -\text{RD}_g \leq p_{g,t} - p_{g,t-1} \leq \text{RU}_g \qquad \forall g \in \mathcal{G}, \; t \geq 2
+\end{equation}
+$\text{RU}_g = \infty$ 또는 $\text{RD}_g = \infty$인 경우 해당 방향의 제약을 생략한다.
+
+\subsubsection{SMP 도출}
+\begin{equation}
+    \lambda_t = \text{dual}\!\left(\sum_{g \in \mathcal{G}} p_{g,t} = D_t^{\text{net}}\right) \qquad \forall t \in \mathcal{T}
+\end{equation}
+
+\subsection{수학적 정식화 --- 구간별 선형(Piecewise Linear) 방식}\label{sec:piecewise}
+
+2차 비용함수를 $S$개 구간으로 선형 근사하여 LP 정식화를 유지한다.
+
+\subsubsection{구간 분할}
+
+발전기 $g$의 출력 범위 $[P_g^{\min}, P_g^{\max}]$를 $S$개의 등간격 구간으로 분할한다:
+\begin{equation}\label{eq:pw_delta}
+    \bar{\delta}_g = \frac{P_g^{\max} - P_g^{\min}}{S}
+\end{equation}
+각 구간 $s \in \{1, \ldots, S\}$의 중점:
+\begin{equation}\label{eq:pw_mid}
+    p_{\text{mid},s} = P_g^{\min} + \left(s - \frac{1}{2}\right) \cdot \bar{\delta}_g
+\end{equation}
+각 구간의 한계비용:
+\begin{equation}\label{eq:pw_mc}
+    \boxed{\text{mc}_{g,s} = (2a_g \cdot p_{\text{mid},s} + b_g) \times 1000 \qquad [\text{원/MWh}]}
+\end{equation}
+
+must-run이 아닌 발전기의 경우 $P_g^{\min}$을 0으로 설정하여
+전체 범위 $[0, P_g^{\max}]$를 분할한다.
+
+$|a_g| < 10^{-12}$인 선형 비용함수의 경우 단일 구간($S=1$)으로 처리:
+$\text{mc}_{g,1} = b_g \times 1000$.
+
+\subsubsection{증분 변수}
+
+구간 $s$의 증분 변수 $\delta_{g,s,t} \geq 0$을 도입한다:
+\begin{equation}\label{eq:pw_var}
+    0 \leq \delta_{g,s,t} \leq \bar{\delta}_g \qquad \forall g, s, t
+\end{equation}
+총 출력은 기저점과 증분 변수의 합으로 표현된다:
+\begin{equation}\label{eq:pw_total}
+    p_{g,t}^{\text{total}} = P_g^{\min} + \sum_{s=1}^{S_g} \delta_{g,s,t}
+\end{equation}
+여기서 $S_g$는 발전기 $g$의 실제 세그먼트 수이다.
+
+\subsubsection{Piecewise Linear 목적함수}
+
+구간별 선형 근사를 사용하면 목적함수는 다음과 같이 변환된다:
+\begin{equation}\label{eq:pw_obj}
+    \boxed{\min \quad \underbrace{\sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} \sum_{s=1}^{S_g} \text{mc}_{g,s} \cdot \delta_{g,s,t}}_{\text{구간별 선형 비용}}
+    + \underbrace{\sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} A_{g,t} \cdot p_{g,t}^{\text{total}}}_{\text{Price Adder 비용}}}
+\end{equation}
+
+\subsubsection{제약조건 (Piecewise 버전)}
+
+수급균형, must-run 최소출력, 출력상한, 램프 제약은 모두
+$p_{g,t}^{\text{total}}$ (식 \eqref{eq:pw_total})로 표현된다:
+\begin{align}
+    &\sum_{g \in \mathcal{G}} p_{g,t}^{\text{total}} = D_t^{\text{net}} && \forall t \label{eq:pw_balance} \\
+    &p_{g,t}^{\text{total}} \geq P_g^{\min} && \forall g \in \mathcal{G}_{\text{must}}, t \label{eq:pw_must} \\
+    &p_{g,t}^{\text{total}} \leq P_g^{\max} && \forall g, t \\
+    &-\text{RD}_g \leq p_{g,t}^{\text{total}} - p_{g,t-1}^{\text{total}} \leq \text{RU}_g && \forall g, t \geq 2 \label{eq:pw_ramp}
+\end{align}
+
+
+% ============================================================
+% 5. Post-revision Economic Dispatch
+% ============================================================
+\section{Post-revision Economic Dispatch (Post-ED)}\label{sec:post_ed}
+
+\subsection{개요}
+
+Post-revision ED는 재생에너지 입찰제 도입 후의 시장을 모형화한다.
+Pre-ED 대비 다음 요소가 추가된다:
+\begin{itemize}[noitemsep]
+    \item \textbf{재생에너지 입찰 블록}: 6개 블록 (PV\_low, PV\_mid, PV\_high, W\_low, W\_mid, W\_high)
+    \item \textbf{입찰 하한가(BidFloor)}: $-\beta \times \text{REC} \times 1000$
+    \item \textbf{비입찰 RE 변수 분리}: dual pollution 방지를 위한 \texttt{re\_net} 변수
+    \item \textbf{RE Pmin 제약}: 제주 규정 적용 --- 낙찰 시 최소 공급 의무
+    \item \textbf{$\varepsilon_{\text{nonbid}}$ 페널티}: degeneracy 해소를 위한 비입찰 RE 비용항
+\end{itemize}
+
+\subsection{재생에너지 블록 구조}\label{sec:re_blocks}
+
+\subsubsection{입찰참여분/비입찰분 분리}
+
+전체 재생에너지 가용량을 입찰참여율 $\rho$에 따라 분리한다:
+\begin{align}
+    \text{PV}_t^{\text{bid}} &= \rho_{\text{PV}} \cdot \text{avail}_t^{\text{PV}} \label{eq:pv_bid} \\
+    \text{W}_t^{\text{bid}} &= \rho_{\text{W}} \cdot \text{avail}_t^{\text{W}} \\
+    \text{RE}_t^{\text{nonbid}} &= (1 - \rho_{\text{PV}}) \cdot \text{avail}_t^{\text{PV}}
+        + (1 - \rho_{\text{W}}) \cdot \text{avail}_t^{\text{W}} \label{eq:re_nonbid}
+\end{align}
+
+\subsubsection{Low/Mid/High 블록 분할}
+
+입찰참여분을 가중치 $\bm{w} = (w_{\text{low}}, w_{\text{mid}}, w_{\text{high}})$로 3분할한다
+(태양광, 풍력 각각):
+\begin{align}
+    \bar{R}_{k,t}^{\text{PV\_low}}  &= w_{\text{low}}^{\text{PV}} \cdot \text{PV}_t^{\text{bid}} \\
+    \bar{R}_{k,t}^{\text{PV\_mid}}  &= w_{\text{mid}}^{\text{PV}} \cdot \text{PV}_t^{\text{bid}} \\
+    \bar{R}_{k,t}^{\text{PV\_high}} &= w_{\text{high}}^{\text{PV}} \cdot \text{PV}_t^{\text{bid}}
+\end{align}
+기본값: $\bm{w}^{\text{PV}} = \bm{w}^{\text{W}} = (0.4, 0.3, 0.3)$.
+총 6개 블록: $\mathcal{K} = \{\text{PV\_low}, \text{PV\_mid}, \text{PV\_high}, \text{W\_low}, \text{W\_mid}, \text{W\_high}\}$.
+
+\subsubsection{블록별 설비용량}
+
+각 블록이 점유하는 설비용량은 다음과 같이 산출된다:
+\begin{equation}\label{eq:block_inst}
+    \text{inst}_k = w_k \cdot \rho \cdot \text{Installed}_{\text{tech}}
+\end{equation}
+여기서 $\text{tech} \in \{\text{PV}, \text{W}\}$.
+
+\subsubsection{입찰 하한가 (BidFloor)}
+
+제주형 하한가 규정을 적용한다:
+\begin{equation}\label{eq:bid_floor}
+    \boxed{\text{BidFloor} = -\beta \times \text{REC} \times 1000 \qquad [\text{원/MWh}]}
+\end{equation}
+여기서:
+\begin{itemize}[noitemsep]
+    \item $\beta$: 하한가 계수 (기본값 2.0, 민감도 분석 시 1.5/2.0/2.5)
+    \item $\text{REC}$: REC 평균가격 [원/kWh] (기본값 80 원/kWh)
+    \item $\times 1000$: kWh $\to$ MWh 단위 변환
+\end{itemize}
+예: $\beta = 2.0$, $\text{REC} = 80$ 원/kWh $\Rightarrow$ BidFloor $= -160{,}000$ 원/MWh.
+
+\subsubsection{시나리오별 입찰가격 부여}
+
+4가지 입찰 시나리오에 따른 블록별 입찰가격:
+
+\begin{table}[H]
+\centering
+\caption{시나리오별 입찰가격 ($f$: BidFloor)}\label{tab:bid_scenarios}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{블록} & \textbf{zero} & \textbf{floor} & \textbf{mixed} & \textbf{conservative} \\
+\midrule
+Low  & 0 & $f$ & $f$    & $0.5f$ \\
+Mid  & 0 & $f$ & $0.5f$ & $0.25f$ \\
+High & 0 & $f$ & 0      & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{수학적 정식화}
+
+\subsubsection{결정변수}
+
+\begin{itemize}[noitemsep]
+    \item $p_{g,t}$: 열발전기 $g$의 시간 $t$ 발전량 [MW] (또는 구간별 $\delta_{g,s,t}$)
+    \item $r_{k,t}$: 재생에너지 입찰 블록 $k$의 시간 $t$ 낙찰량 [MW]
+    \item $\text{re\_net}_t$: 비입찰 재생에너지의 실제 투입량 [MW]
+\end{itemize}
+
+\subsubsection{목적함수 (R1)}
+
+\textbf{Piecewise Linear 버전}:
+\begin{equation}\label{eq:post_obj}
+    \boxed{\min \quad
+    \underbrace{\sum_{t,g,s} \text{mc}_{g,s} \cdot \delta_{g,s,t}}_{\text{구간별 선형 비용}}
+    + \underbrace{\sum_{t,g} A_{g,t} \cdot p_{g,t}^{\text{total}}}_{\text{Price Adder}}
+    + \underbrace{\sum_{t,k} b_{k,t} \cdot r_{k,t}}_{\text{RE 입찰 비용}}
+    + \underbrace{\varepsilon_{\text{nonbid}} \cdot \sum_t \text{re\_net}_t}_{\text{비입찰 RE 비용}}}
+\end{equation}
+여기서:
+\begin{itemize}[noitemsep]
+    \item $\text{mc}_{g,s}$: 구간 $s$의 한계비용 (식 \eqref{eq:pw_mc})
+    \item $A_{g,t}$: Price Adder
+    \item $b_{k,t}$: 블록 $k$의 입찰가격
+    \item $\varepsilon_{\text{nonbid}} = 100$ 원/MWh: degeneracy 해소용 소규모 비용
+\end{itemize}
+
+\textbf{단일 변수 버전} (Piecewise 미사용 시):
+\begin{equation}
+    \min \quad \sum_{t,g} \tilde{c}_{g,t} \cdot p_{g,t}
+    + \sum_{t,k} b_{k,t} \cdot r_{k,t}
+    + \varepsilon_{\text{nonbid}} \sum_t \text{re\_net}_t
+\end{equation}
+
+\paragraph{$\varepsilon_{\text{nonbid}}$ 항의 역할.}
+비입찰 RE($\text{re\_net}_t$)에 소규모 양의 비용을 부여함으로써,
+LP 솔버가 비입찰 RE와 입찰 RE 간의 교환에서 degeneracy를 겪지 않도록 한다.
+이 항이 없으면 dual(SMP)이 불안정하게 결정될 수 있다.
+
+\subsubsection{수급균형 제약 (R2)}
+
+총 수요를 열발전, 재생 입찰블록, 비입찰 RE가 충족한다:
+\begin{equation}\label{eq:post_balance}
+    \boxed{\sum_{g \in \mathcal{G}} p_{g,t}^{\text{total}} + \sum_{k \in \mathcal{K}} r_{k,t} + \text{re\_net}_t = D_t \qquad \forall t \in \mathcal{T}}
+\end{equation}
+
+\textbf{주의}: Pre-ED와 달리 순수요가 아닌 \emph{총수요} $D_t$를 사용한다.
+비입찰 RE는 $\text{re\_net}_t$ 변수로 내생적으로 결정된다.
+
+\subsubsection{비입찰 RE 범위}
+
+dual pollution 방지를 위해 $\text{re\_net}_t$를 제한된 범위의 변수로 정의한다:
+\begin{equation}\label{eq:re_net_bound}
+    0 \leq \text{re\_net}_t \leq \text{RE}_t^{\text{nonbid}} \qquad \forall t \in \mathcal{T}
+\end{equation}
+출력제한량은 사후 계산: $\text{curt}_t = \text{RE}_t^{\text{nonbid}} - \text{re\_net}_t$.
+
+\subsubsection{RE 입찰 블록 제약 (R3)}
+
+각 입찰 블록의 낙찰량은 공급가능량 이하이며, RE Pmin 제약을 만족해야 한다:
+\begin{equation}\label{eq:re_bounds}
+    P_{k,t}^{\min,\text{RE}} \leq r_{k,t} \leq \bar{R}_{k,t} \qquad \forall k \in \mathcal{K}, \; \forall t \in \mathcal{T}
+\end{equation}
+
+\subsubsection{RE Pmin 제약 (제주 규정)}
+
+제주 전력시장 규정을 참고하여, 입찰 블록이 낙찰될 경우 최소 공급 의무를 부과한다:
+\begin{equation}\label{eq:re_pmin}
+    \boxed{P_{k,t}^{\min,\text{RE}} = \begin{cases}
+        \min(\alpha \cdot \text{inst}_k, \; \bar{R}_{k,t}) & \text{if } \text{inst}_k > 0 \text{ and } \bar{R}_{k,t} > 10^{-3} \\
+        \alpha \cdot \bar{R}_{k,t} & \text{if } \text{inst}_k = 0 \text{ and } \bar{R}_{k,t} > 10^{-3} \\
+        0 & \text{otherwise}
+    \end{cases}}
+\end{equation}
+여기서 $\alpha$ = \texttt{re\_pmin\_frac} (기본값 0.1).
+
+\subsubsection{열발전 제약}
+
+Pre-ED의 모든 제약 (P4), (P5)를 그대로 유지한다:
+\begin{align}
+    &\text{(P4)} \quad
+    \begin{cases}
+        P_g^{\min} \leq p_{g,t}^{\text{total}} \leq P_g^{\max} & g \in \mathcal{G}_{\text{must}} \\
+        0 \leq p_{g,t}^{\text{total}} \leq P_g^{\max}           & g \notin \mathcal{G}_{\text{must}}
+    \end{cases} \\
+    &\text{(P5)} \quad
+    -\text{RD}_g \leq p_{g,t}^{\text{total}} - p_{g,t-1}^{\text{total}} \leq \text{RU}_g \qquad t \geq 2
+\end{align}
+
+\subsubsection{SMP 도출}
+
+$\text{re\_net}$ 변수 분리에 의해 출력제한 페널티가 dual에 포함되지 않으므로,
+LP dual을 직접 SMP로 사용한다:
+\begin{equation}\label{eq:post_smp}
+    \boxed{\lambda_t = \text{dual}\!\left(\sum_g p_{g,t}^{\text{total}} + \sum_k r_{k,t} + \text{re\_net}_t = D_t\right)}
+\end{equation}
+
+\subsection{Case A: Zero-Bidding Baseline ($\rho = 0$)}
+
+Case A (Case\_A\_zero)에서는 입찰참여율 $\rho_{\text{PV}} = \rho_{\text{W}} = 0$으로 설정하여
+재생에너지 입찰 블록 변수를 생성하지 않는다 (\texttt{bidding\_active = false}).
+이 경우 Post-ED는 Pre-ED와 동치가 되어야 하며, 이를 검증한다:
+\begin{equation}
+    \max_t |\text{SMP}_t^{\text{post,A}} - \text{SMP}_t^{\text{pre}}| < 1 \; \text{원/MWh}
+\end{equation}
+
+\subsection{$\Delta$SMP 분석}
+
+Pre vs Post의 SMP 변화를 분석한다:
+\begin{equation}\label{eq:delta_smp}
+    \Delta\text{SMP}_t = \text{SMP}_t^{\text{post}} - \text{SMP}_t^{\text{pre}}
+\end{equation}
+\begin{itemize}[noitemsep]
+    \item $\Delta\text{SMP}_t > 0$: SMP 상승 (저녁 램프 등)
+    \item $\Delta\text{SMP}_t < 0$: SMP 하락 (낮 시간 재생 주입 등)
+\end{itemize}
+
+
+% ============================================================
+% 6. Price Adder 보정
+% ============================================================
+\section{Price Adder 보정 (Calibration)}\label{sec:calibrate}
+
+\subsection{동기}
+
+경제급전 모형은 기동비(startup cost), 무부하비(no-load cost), 정지비(shutdown cost) 등
+기동정지(UC, Unit Commitment) 관련 비용을 직접 모형화하지 않으므로,
+실제 SMP와 체계적 괴리가 발생한다.
+Price Adder $A_{g,t}$는 이러한 미모형 요소를 부분 흡수하는 보정항으로,
+반복 보정법(iterative correction)으로 추정한다.
+
+\subsection{검증지표}
+
+\subsubsection{MAE (Mean Absolute Error)}
+\begin{equation}\label{eq:mae}
+    \text{MAE} = \frac{1}{T} \sum_{t=1}^{T} |\text{SMP}_t^{\text{model}} - \text{SMP}_t^{\text{actual}}|
+\end{equation}
+
+\subsubsection{RMSE (Root Mean Square Error)}
+\begin{equation}\label{eq:rmse}
+    \text{RMSE} = \sqrt{\frac{1}{T} \sum_{t=1}^{T} (\text{SMP}_t^{\text{model}} - \text{SMP}_t^{\text{actual}})^2}
+\end{equation}
+
+\subsubsection{지속곡선(Duration Curve) 오차}
+\begin{equation}
+    \text{DC\_Error} = \frac{1}{T} \sum_{t=1}^{T} |\text{DC}_t^{\text{model}} - \text{DC}_t^{\text{actual}}|
+\end{equation}
+여기서 $\text{DC}_t$는 SMP를 내림차순 정렬한 지속곡선이다.
+
+\subsection{단일일 Price Adder 추정}\label{sec:single_day_adder}
+
+\subsubsection{알고리즘 개요}
+
+$A_{g,t}$를 0으로 초기화한 후, 각 반복에서:
+\begin{enumerate}[noitemsep]
+    \item Pre-ED를 풀어 $\text{SMP}_t^{\text{model}}$을 산출
+    \item 오차 $e_t = \text{SMP}_t^{\text{actual}} - \text{SMP}_t^{\text{model}}$ 계산
+    \item 활성 한계발전기(marginal generator) 집합 식별
+    \item Adder 갱신
+    \item L2 shrinkage 적용
+    \item 물리적 bounds clamping
+\end{enumerate}
+
+\subsubsection{활성 한계발전기 집합}
+
+시간 $t$에서 부분 투입 상태인 발전기 집합:
+\begin{equation}\label{eq:marg_set}
+    \mathcal{M}_t = \left\{g \in \mathcal{G} : P_g^{\min} + 10^{-3} < p_{g,t} < P_g^{\max} - 10^{-3}\right\}
+\end{equation}
+여기서 must-run이 아닌 발전기의 $P_g^{\min}$은 0으로 간주한다.
+
+\subsubsection{Adder 갱신 규칙 (1/$n_{\text{marg}}$ 정규화)}
+
+\begin{equation}\label{eq:adder_update}
+    \boxed{A_{g,t} \leftarrow A_{g,t} + \eta \cdot \frac{e_t}{n_{\text{marg},t}} \qquad \forall g \in \mathcal{M}_t}
+\end{equation}
+여기서:
+\begin{itemize}[noitemsep]
+    \item $\eta$: 학습률 (기본값 0.3)
+    \item $e_t = \text{SMP}_t^{\text{actual}} - \text{SMP}_t^{\text{model}}$: 시간 $t$의 SMP 오차
+    \item $n_{\text{marg},t} = |\mathcal{M}_t|$: 활성 한계발전기 수
+\end{itemize}
+
+$n_{\text{marg},t} = 0$이면 갱신을 생략한다.
+$1/n_{\text{marg}}$ 정규화는 오차를 한계발전기들에 균등 분배하여
+단일 발전기에 과도한 보정이 집중되는 것을 방지한다.
+
+\subsubsection{L2 Shrinkage (Tikhonov 정규화)}
+
+각 반복 후 Adder 전체에 shrinkage를 적용한다:
+\begin{equation}\label{eq:l2_shrinkage}
+    \boxed{A_{g,t} \leftarrow (1 - \lambda\eta) \cdot A_{g,t} \qquad \forall g, t}
+\end{equation}
+여기서 $\lambda\eta$ = \texttt{l2\_shrinkage} (기본값 0.05).
+
+이는 Tikhonov 정규화의 경사하강법 등가로,
+Adder가 0으로 수축하는 효과를 제공하여 과적합을 방지한다.
+
+\subsubsection{물리적 Bounds Clamping}
+
+Adder가 기동비 기반 물리적 상한(식 \eqref{eq:adder_bound})을 초과하지 않도록 제한한다:
+\begin{equation}\label{eq:clamp}
+    A_{g,t} \leftarrow \text{clamp}(A_{g,t}, -\bar{A}_g, \bar{A}_g)
+\end{equation}
+
+\subsubsection{수렴 판정}
+
+MAE가 목표값(기본값 5,000 원/MWh) 이하이면 조기 종료한다.
+
+\begin{algorithm}[H]
+\caption{단일일 Price Adder 추정}\label{alg:single_adder}
+\begin{algorithmic}[1]
+\REQUIRE $\mathcal{G}$, $\mathcal{T}$, $\text{SMP}^{\text{actual}}$, $\eta$, $\lambda\eta$, $\bar{A}$, $N_{\max}$
+\STATE $A_{g,t} \leftarrow 0 \quad \forall g, t$
+\FOR{$\text{iter} = 1$ to $N_{\max}$}
+    \STATE Pre-ED를 풀어 $\text{SMP}^{\text{model}}$ 산출 (\texttt{curtailment\_free = true})
+    \STATE $\text{MAE} \leftarrow \frac{1}{T}\sum_t |e_t|$ \quad 여기서 $e_t = \text{SMP}_t^{\text{actual}} - \text{SMP}_t^{\text{model}}$
+    \IF{$\text{MAE} < \text{target\_mae}$}
+        \STATE \textbf{break}
+    \ENDIF
+    \FOR{$t = 1$ to $T$}
+        \STATE $\mathcal{M}_t \leftarrow \{g : P_g^{\min} + \epsilon < p_{g,t} < P_g^{\max} - \epsilon\}$
+        \STATE $n_{\text{marg}} \leftarrow |\mathcal{M}_t|$
+        \IF{$n_{\text{marg}} > 0$}
+            \FOR{$g \in \mathcal{M}_t$}
+                \STATE $A_{g,t} \leftarrow A_{g,t} + \eta \cdot e_t / n_{\text{marg}}$
+            \ENDFOR
+        \ENDIF
+    \ENDFOR
+    \STATE $A \leftarrow (1 - \lambda\eta) \cdot A$ \hfill \textit{// L2 shrinkage}
+    \STATE $A_{g,t} \leftarrow \text{clamp}(A_{g,t}, -\bar{A}_g, \bar{A}_g) \quad \forall g, t$ \hfill \textit{// bounds}
+\ENDFOR
+\RETURN $A$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{다일(Multi-day) 3D Adder 추정}\label{sec:multi_day_adder}
+
+단일일 Adder는 특정 일자에 과적합될 수 있으므로,
+다수의 훈련일에 걸쳐 계절별 3차원 Adder를 추정한다.
+
+\subsubsection{3D Adder 구조}
+
+\begin{equation}\label{eq:adder_3d}
+    \boxed{A[g, h, s] \in \mathbb{R}^{G \times 24 \times 4}}
+\end{equation}
+여기서:
+\begin{itemize}[noitemsep]
+    \item $g \in \{1, \ldots, G\}$: 발전기 인덱스
+    \item $h \in \{1, \ldots, 24\}$: 시간 인덱스
+    \item $s \in \{1, 2, 3, 4\}$: 계절 인덱스 (봄/여름/가을/겨울)
+\end{itemize}
+
+계절 분류:
+\begin{equation}
+    s = \begin{cases}
+        1 \; (\text{spring}) & \text{월} \in \{3, 4, 5\} \\
+        2 \; (\text{summer}) & \text{월} \in \{6, 7, 8\} \\
+        3 \; (\text{fall})   & \text{월} \in \{9, 10, 11\} \\
+        4 \; (\text{winter}) & \text{월} \in \{12, 1, 2\}
+    \end{cases}
+\end{equation}
+
+\subsubsection{Train/Test/Buffer 분할}
+
+시간적 누출(temporal leakage)을 방지하기 위해 다음과 같이 분할한다:
+\begin{itemize}[noitemsep]
+    \item \textbf{Test}: 계절당 3일, 총 12일 (대표일)
+    \item \textbf{Buffer}: Test 일자 $\pm 3$일 (제외 구간)
+    \item \textbf{Train}: 계절당 25일, 총 $\approx$100일 (계절균형 층화추출)
+\end{itemize}
+
+\subsubsection{에폭 단위 갱신}
+
+각 에폭(epoch)에서 훈련일을 무작위 순서로 순회하며 누적 갱신을 수행한다:
+\begin{equation}
+    \Delta A[g, h, s] = \frac{1}{n_s} \sum_{d \in \mathcal{D}_s^{\text{train}}} \eta \cdot \frac{e_{d,h}}{n_{\text{marg},d,h}}
+    \cdot \mathbb{1}[g \in \mathcal{M}_{d,h}]
+\end{equation}
+여기서 $n_s$는 계절 $s$에 속하는 훈련일 수이다.
+
+에폭 종료 시:
+\begin{align}
+    A[g, h, s] &\leftarrow A[g, h, s] + \Delta A[g, h, s] && \text{(계절별 평균 갱신)} \\
+    A &\leftarrow (1 - \lambda\eta) \cdot A && \text{(L2 shrinkage)} \\
+    A[g, h, s] &\leftarrow \text{clamp}(A[g, h, s], -\bar{A}_g, \bar{A}_g) && \text{(물리적 bounds)}
+\end{align}
+
+\subsubsection{일자별 Adder 슬라이스}
+
+특정 날짜 $d$에 대한 Adder는 해당 계절의 슬라이스를 사용한다:
+\begin{equation}
+    A_{g,t}(d) = A[g, t, s(d)]
+\end{equation}
+여기서 $s(d)$는 날짜 $d$의 계절 인덱스이다.
+
+\subsection{Curtailment-free Calibration Purity}
+
+Calibration 과정에서 \texttt{curtailment\_free = true}로 설정하여
+RE를 must-take로 주입한다. 이는 출력제한의 dual이 Adder에 유입되어
+Adder의 물리적 해석을 오염시키는 것(dual pollution)을 방지한다.
+
+\subsection{교차검증}
+
+Leave-one-out 교차검증으로 과적합 여부를 평가한다:
+\begin{equation}
+    R_{\text{overfit}} = \frac{\text{MAE}_{\text{test}}}{\text{MAE}_{\text{train}}}
+\end{equation}
+$R_{\text{overfit}} > 1.5$이면 과적합을 의심한다.
+
+
+% ============================================================
+% 7. 시나리오 분석
+% ============================================================
+\section{시나리오 분석}\label{sec:scenarios}
+
+\subsection{4개 기본 시나리오}
+
+\begin{table}[H]
+\centering
+\caption{4개 기본 시나리오 (Case A--D)}\label{tab:scenarios}
+\begin{tabularx}{\textwidth}{lllXcc}
+\toprule
+\textbf{시나리오} & \textbf{코드명} & \textbf{입찰모드} & \textbf{설명} & $\rho_{\text{PV}}$ & $\rho_{\text{W}}$ \\
+\midrule
+Case A & Case\_A\_zero         & zero         & 입찰참여 없음 ($\rho=0$), baseline        & 0.0 & 0.0 \\
+Case B & Case\_B\_floor        & floor        & 전 블록 하한가 입찰                        & 0.3 & 0.3 \\
+Case C & Case\_C\_mixed        & mixed        & Low=하한가, Mid=50\%, High=0               & 0.3 & 0.3 \\
+Case D & Case\_D\_conservative & conservative & Low=50\%, Mid=25\%, High=0                 & 0.3 & 0.3 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Case A는 $\rho = 0$이므로 입찰 블록 변수를 생성하지 않으며(\texttt{bidding\_active = false}),
+Post-ED와 Pre-ED의 SMP가 동치임을 검증하는 baseline 역할을 한다.
+
+\subsection{$\beta$ 민감도 분석}
+
+입찰 하한가 계수 $\beta \in \{1.5, 2.0, 2.5\}$를 변동하여 SMP 영향을 분석한다.
+$\beta$가 클수록 음의 입찰가격(BidFloor)이 더 낮아져 재생에너지의 가격 하방 압력이 강해진다:
+\begin{equation}
+    |\text{BidFloor}| = \beta \times 80 \times 1000 \qquad [\text{원/MWh}]
+\end{equation}
+
+\subsection{$\rho$ 민감도 분석}
+
+입찰참여율 $\rho \in \{0.1, 0.2, 0.3, 0.5\}$를 변동하여 SMP 영향을 분석한다.
+$\rho$가 높을수록 더 많은 재생에너지가 입찰에 참여하여 공급곡선에 진입한다.
+
+\subsection{BidderType 이질성 (Heterogeneity)}\label{sec:bidder_types}
+
+재생에너지 입찰사업자를 4가지 유형으로 분류하여 행태 이질성을 반영한다:
+
+\begin{table}[H]
+\centering
+\caption{입찰사업자 유형}\label{tab:bidder_types}
+\small
+\begin{tabular}{lccccc}
+\toprule
+\textbf{유형} & $\phi_j$ (비율) & Beta$(\alpha, \beta)$ & $w_{\text{low}}$ & $w_{\text{mid}}$ & $w_{\text{high}}$ \\
+\midrule
+aggressive   & 0.30 & Beta(2, 5) & 0.6 & 0.3 & 0.1 \\
+moderate     & 0.40 & Beta(3, 3) & 0.4 & 0.4 & 0.2 \\
+conservative & 0.20 & Beta(5, 2) & 0.2 & 0.4 & 0.4 \\
+PPA\_locked  & 0.10 & Beta(8, 1.5) & 0.1 & 0.3 & 0.6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+유형 비율 $\sum_j \phi_j = 1$을 만족하며, 각 유형의 Beta 분포는
+입찰가격 결정 시 확률적 행태를 모형화한다.
+
+\subsubsection{정책 침투도 시나리오}
+
+시장 성숙도에 따른 사업자 유형 구성 변화:
+
+\begin{table}[H]
+\centering
+\caption{정책 침투도 시나리오별 유형 비율}\label{tab:penetration}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{시나리오} & aggressive & moderate & conservative & PPA\_locked \\
+\midrule
+S1\_Early      & 0.50 & 0.30 & 0.15 & 0.05 \\
+S2\_Mature     & 0.30 & 0.40 & 0.20 & 0.10 \\
+S3\_Aggressive & 0.15 & 0.35 & 0.30 & 0.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Beta 혼합 + Common Shock 몬테카를로}\label{sec:monte_carlo}
+
+\subsubsection{확률 모형}
+
+각 시뮬레이션 표본 $i$에서:
+
+\paragraph{Step 1: 유형별 확률 변수 추출.}
+각 사업자 유형 $j$에 대해 Beta 분포에서 표본을 추출한다:
+\begin{equation}\label{eq:beta_draw}
+    u_j \sim \text{Beta}(\alpha_j, \beta_j) \qquad j = 1, \ldots, J
+\end{equation}
+
+\paragraph{Step 2: Common Shock 추출.}
+시장 전체에 영향을 미치는 공통 충격:
+\begin{equation}\label{eq:common_shock}
+    \kappa \sim \max\!\big(0, \; \mathcal{N}(1, \sigma^2)\big)
+\end{equation}
+기본값: $\sigma = 0.10$. $\kappa$를 0 이상으로 절단한다.
+
+\paragraph{Step 3: 블록별 입찰가 결정.}
+Low/Mid/High 각 블록 $l$에 대해, 유형별 가중평균으로 통합 입찰 강도 $\bar{u}_l$을 산출한다:
+\begin{equation}\label{eq:u_block}
+    \bar{u}_l = \frac{\sum_{j=1}^{J} \phi_j \cdot w_{j,l} \cdot u_j}{\sum_{j=1}^{J} \phi_j \cdot w_{j,l}}
+    \qquad l \in \{\text{low}, \text{mid}, \text{high}\}
+\end{equation}
+여기서 $w_{j,l}$은 유형 $j$의 블록 $l$ 가중치이다.
+
+입찰가격은 다음과 같이 결정된다:
+\begin{equation}\label{eq:bid_price_mc}
+    \boxed{b_l = \text{clamp}\!\big(\kappa \cdot (\bar{u}_l - 1) \cdot |\text{BidFloor}|, \; \text{BidFloor}, \; 0\big)}
+\end{equation}
+여기서 $|\text{BidFloor}| = \beta \times \text{REC} \times 1000$.
+
+\subsubsection{시뮬레이션 실행}
+
+$N$ 표본(기본값 200)에 대해 Post-ED를 반복 실행하고 결과를 집계한다:
+\begin{align}
+    \overline{\text{SMP}}_t &= \frac{1}{N_{\text{success}}} \sum_{i=1}^{N_{\text{success}}} \text{SMP}_t^{(i)} \\
+    \text{SMP}_t^{5\%} &= Q_{0.05}\!\left(\{\text{SMP}_t^{(i)}\}_{i=1}^{N_{\text{success}}}\right) \\
+    \text{SMP}_t^{95\%} &= Q_{0.95}\!\left(\{\text{SMP}_t^{(i)}\}_{i=1}^{N_{\text{success}}}\right) \\
+    \overline{\Delta\text{SMP}} &= \frac{1}{T} \sum_{t=1}^{T} \left(\overline{\text{SMP}}_t - \text{SMP}_t^{\text{pre}}\right)
+\end{align}
+
+\subsection{출력제한 분석}
+
+각 시나리오의 출력제한을 분석한다:
+\begin{align}
+    \text{Curt}_{\text{total}} &= \sum_{t=1}^{T} \text{curt}_t \qquad [\text{MWh}] \\
+    \text{Curt}_{\text{hours}} &= |\{t : \text{curt}_t > 10^{-3}\}| \\
+    \text{Corr}(\text{curt}, \text{SMP}) &= \frac{\text{Cov}(\text{curt}_t, \text{SMP}_t)}
+        {\text{Std}(\text{curt}_t) \cdot \text{Std}(\text{SMP}_t)}
+\end{align}
+
+Pre vs Post의 출력제한 감소율:
+\begin{equation}
+    \text{Reduction}\,\% = \left(1 - \frac{\text{Curt}_{\text{post}}}{\text{Curt}_{\text{pre}}}\right) \times 100
+\end{equation}
+
+
+% ============================================================
+% 8. 구현 세부사항
+% ============================================================
+\section{구현 세부사항}\label{sec:implementation}
+
+\subsection{소프트웨어 환경}
+
+\begin{table}[H]
+\centering
+\caption{소프트웨어 스택}\label{tab:software}
+\begin{tabular}{ll}
+\toprule
+\textbf{구성요소} & \textbf{설명} \\
+\midrule
+프로그래밍 언어 & Julia \\
+수리 최적화     & JuMP (Julia for Mathematical Programming) \\
+LP 솔버        & HiGHS (High Performance Optimization Software) \\
+데이터 처리     & DataFrames.jl, CSV.jl \\
+통계 분포       & Distributions.jl (Beta, Normal) \\
+난수 생성       & Random (MersenneTwister, seed=2024) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{소스코드 구조}
+
+\begin{table}[H]
+\centering
+\caption{소스코드 파일 구조}\label{tab:source_files}
+\small
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{파일} & \textbf{역할} \\
+\midrule
+\texttt{types.jl}          & 핵심 자료형 정의 (ThermalGenerator, RenewableBidBlock, BidderType 등) \\
+\texttt{load\_data.jl}     & CSV 데이터 로딩 (generators, gencost, SMP/수요, 원전 정비 등) \\
+\texttt{preprocess.jl}     & 대표일 선정, MC 계산, Nuclear Must-Off, Piecewise Linear 구간 분할 \\
+\texttt{build\_basic\_ed.jl} & Basic ED 모형 (순수 LP) \\
+\texttt{build\_pre\_ed.jl}   & Pre-revision ED 모형 (유효MC, 램프, must-run, PW) \\
+\texttt{build\_post\_ed.jl}  & Post-revision ED 모형 (6블록, re\_net, BidFloor, RE Pmin) \\
+\texttt{calibrate.jl}       & Price Adder 추정 (단일일/다일, L2 shrinkage, 교차검증) \\
+\texttt{scenarios.jl}       & 시나리오 실행, 민감도, Beta 몬테카를로 \\
+\texttt{run\_all.jl}        & 전체 파이프라인 오케스트레이션 \\
+\texttt{verify\_blocks.jl}  & RE 블록 생성 및 SMP 결정 검증 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{파이프라인 구조}
+
+전체 분석 파이프라인은 6단계(PHASE)로 구성된다:
+
+\begin{description}[style=nextline, noitemsep]
+    \item[PHASE 0: 데이터 로딩]
+    CSV 파일에서 8,784시간 통합 패널을 빌드한다.
+    발전기 122기, gencost 계수, 원전 정비 일정, RE 설비용량을 로딩하고,
+    Piecewise Linear 비용함수($S=4$)를 사전 계산한다.
+
+    \item[PHASE 1: Train/Test/Buffer 분할]
+    일별 프로파일(수요 피크, 평균 SMP, RE 비율, 저녁 램프)을 계산하여
+    계절당 3개 대표일(test 12일), buffer($\pm$3일), train($\approx$100일)을 분할한다.
+
+    \item[PHASE 2: Multi-day Calibration]
+    3D Adder $A[G \times 24 \times 4]$를 10 에폭에 걸쳐 추정한다.
+    학습률 $\eta = 0.2$, L2 shrinkage $\lambda\eta = 0.05$, target MAE $= 4{,}000$ 원/MWh.
+
+    \item[PHASE 3: 대표일 평가]
+    12개 test일에서 Pre-ED/Post-ED를 실행하고 4개 시나리오(Case A--D)를 평가한다.
+    각 일자에서 원전 Must-Off를 적용하고, PW cost를 재계산한다.
+
+    \item[PHASE 4: 정책 침투도 시나리오]
+    S1\_Early, S2\_Mature, S3\_Aggressive에 대해 Beta 몬테카를로(100 표본)를 실행한다.
+
+    \item[PHASE 5: 민감도 분석]
+    $\beta \in \{1.5, 2.0, 2.5\}$, $\rho \in \{0.1, 0.2, 0.3, 0.5\}$에 대해 시나리오를 실행한다.
+\end{description}
+
+\subsection{JuMP 모형 구현 상세}
+
+\subsubsection{모형 생성}
+
+각 ED 모형은 다음 패턴으로 구현된다:
+\begin{enumerate}[noitemsep]
+    \item \texttt{Model(HiGHS.Optimizer)} --- 솔버 인스턴스 생성
+    \item \texttt{set\_silent(model)} --- 솔버 출력 억제
+    \item \texttt{@variable} --- 결정변수 선언 (bounds 포함)
+    \item \texttt{@constraint} --- 수급균형, 램프, must-run 제약
+    \item \texttt{@objective} --- 목적함수 설정 (Min)
+    \item \texttt{optimize!(model)} --- 최적화 실행
+    \item \texttt{dual(balance[t])} --- SMP 추출
+\end{enumerate}
+
+\subsubsection{Piecewise Linear 구현}
+
+구간별 증분 변수 \texttt{delta[g, s, t]}를 3차원 배열로 선언하며,
+사용하지 않는 세그먼트(발전기의 $S_g < S_{\max}$)는 \texttt{fix(delta, 0.0)}으로 고정한다.
+총 출력 \texttt{p\_total[g, t]}은 \texttt{@expression}으로 정의하여
+목적함수와 제약조건에서 재사용한다.
+
+\subsubsection{수치적 고려사항}
+
+\begin{itemize}[noitemsep]
+    \item 부분 투입 판별 임계값: $\epsilon = 10^{-3}$ MW
+    \item LP dual 부호 관례: JuMP의 Min 문제에서 등호 제약의 dual은 양수
+    \item Piecewise Linear: 구간 한계비용이 단조증가하므로 LP 완화(relaxation)가 정확
+    \item MathOptInterface 상태 확인: \texttt{MOI.OPTIMAL} 여부 검증
+\end{itemize}
+
+\subsection{데이터 단위 체계}
+
+\begin{table}[H]
+\centering
+\caption{주요 변수의 단위}\label{tab:units}
+\begin{tabular}{lll}
+\toprule
+\textbf{변수} & \textbf{단위} & \textbf{비고} \\
+\midrule
+발전출력 $p_{g,t}$     & MW     & \\
+수요 $D_t$             & MW     & \\
+SMP $\lambda_t$        & 원/MWh & \\
+gencost $C(P)$         & 천원/h & $a$: 천원/MW$^2$h, $b$: 천원/MWh \\
+한계비용 MC             & 원/MWh & gencost에서 $\times 1000$ 변환 \\
+BidFloor               & 원/MWh & REC(원/kWh) $\times 1000$ \\
+Price Adder $A_{g,t}$  & 원/MWh & \\
+기동비 $S_g$           & 천원   & 물리적 상한 산출 시 $\times 1000$ \\
+REC 가격               & 원/kWh & 기본값 80 원/kWh \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ============================================================
+% 9. 수학적 정식화 요약
+% ============================================================
+\section{수학적 정식화 종합 요약}\label{sec:summary}
+
+본 절에서는 3단계 ED 모형의 수학적 정식화를 종합 비교한다.
+
+\subsection{Basic ED}
+
+\begin{align}
+    &\min_{p_{g,t}} && \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} c_g \cdot p_{g,t} \tag{B1} \\
+    &\text{s.t.} && \sum_{g \in \mathcal{G}} p_{g,t} = D_t - \text{RE}_t && \forall t \tag{B2} \\
+    & && 0 \leq p_{g,t} \leq P_g^{\max} && \forall g, t \tag{B3}
+\end{align}
+
+\subsection{Pre-revision ED (Piecewise Linear)}
+
+\begin{align}
+    &\min_{\delta_{g,s,t}} && \sum_{t,g,s} \text{mc}_{g,s} \cdot \delta_{g,s,t}
+        + \sum_{t,g} A_{g,t} \cdot p_{g,t}^{\text{total}} \tag{P2'} \\
+    &\text{s.t.} && \sum_{g \in \mathcal{G}} p_{g,t}^{\text{total}} = D_t - \text{RE}_t^{\text{eff}} && \forall t \tag{P3} \\
+    & && p_{g,t}^{\text{total}} = P_g^{\min} + \textstyle\sum_s \delta_{g,s,t} && \forall g, t \\
+    & && 0 \leq \delta_{g,s,t} \leq \bar{\delta}_g && \forall g, s, t \\
+    & && p_{g,t}^{\text{total}} \geq P_g^{\min} && \forall g \in \mathcal{G}_{\text{must}}, t \tag{P4} \\
+    & && -\text{RD}_g \leq p_{g,t}^{\text{total}} - p_{g,t-1}^{\text{total}} \leq \text{RU}_g && \forall g, t \geq 2 \tag{P5}
+\end{align}
+
+\subsection{Post-revision ED (Piecewise Linear + RE Bidding)}
+
+\begin{align}
+    &\min_{\delta, r, \text{re\_net}} &&
+        \sum_{t,g,s} \text{mc}_{g,s} \cdot \delta_{g,s,t}
+        + \sum_{t,g} A_{g,t} \cdot p_{g,t}^{\text{total}}
+        + \sum_{t,k} b_{k,t} \cdot r_{k,t}
+        + \varepsilon \sum_t \text{re\_net}_t \tag{R1} \\
+    &\text{s.t.} &&
+        \sum_g p_{g,t}^{\text{total}} + \sum_k r_{k,t} + \text{re\_net}_t = D_t && \forall t \tag{R2} \\
+    & && P_{k,t}^{\min,\text{RE}} \leq r_{k,t} \leq \bar{R}_{k,t} && \forall k, t \tag{R3} \\
+    & && 0 \leq \text{re\_net}_t \leq \text{RE}_t^{\text{nonbid}} && \forall t \\
+    & && \text{(P4), (P5) 동일} \notag
+\end{align}
+
+\subsection{Price Adder 보정}
+
+\begin{align}
+    &\text{갱신:} && A_{g,t} \leftarrow A_{g,t} + \eta \cdot \frac{e_t}{n_{\text{marg},t}} && g \in \mathcal{M}_t \tag{C1} \\
+    &\text{수축:} && A \leftarrow (1 - \lambda\eta) \cdot A \tag{C2} \\
+    &\text{제한:} && A_{g,t} \in [-\bar{A}_g, \bar{A}_g] \tag{C3}
+\end{align}
+
+\subsection{Beta 몬테카를로}
+
+\begin{align}
+    &u_j \sim \text{Beta}(\alpha_j, \beta_j), \qquad
+    \kappa \sim \max(0, \mathcal{N}(1, \sigma^2)) \tag{MC1} \\
+    &\bar{u}_l = \frac{\sum_j \phi_j w_{j,l} u_j}{\sum_j \phi_j w_{j,l}} \tag{MC2} \\
+    &b_l = \text{clamp}\!\big(\kappa(\bar{u}_l - 1) |\text{BidFloor}|, \text{BidFloor}, 0\big) \tag{MC3}
+\end{align}
+
+
+% ============================================================
+% 10. 대표일 선정 방법론
+% ============================================================
+\section{대표일 선정 방법론}\label{sec:representative_days}
+
+\subsection{일별 프로파일 특성}
+
+각 날짜에 대해 다음 5가지 특성을 산출한다:
+\begin{align}
+    &\text{max\_demand}(d) = \max_{t \in d} D_t \\
+    &\text{mean\_smp}(d) = \frac{1}{24}\sum_{t \in d} \text{SMP}_t \\
+    &\text{solar\_share}(d) = \frac{\sum_{t \in d} \text{PV}_t}{\sum_{t \in d} D_t} \\
+    &\text{wind\_share}(d) = \frac{\sum_{t \in d} \text{W}_t}{\sum_{t \in d} D_t} \\
+    &\text{evening\_ramp}(d) = D_{21} - D_{15} \qquad [\text{MW}]
+\end{align}
+
+\subsection{계절별 3일 선정}
+
+각 계절 $s$에 대해 3일을 선정한다:
+\begin{enumerate}[noitemsep]
+    \item \textbf{RE 고비율일}: 수요 중위수 이하 일자 중 $\text{solar\_share} + \text{wind\_share}$가 최대인 일자
+    \item \textbf{SMP 평균일}: 나머지 일자 중 $|\text{mean\_smp} - \text{median}(\text{mean\_smp}_s)|$이 최소인 일자
+    \item \textbf{피크 수요일}: $\text{max\_demand}$가 최대인 일자
+\end{enumerate}
+결과적으로 4계절 $\times$ 3일 $= 12$일이 test 대표일로 선정된다.
+
+
+% ============================================================
+% 11. 모형 한계 및 가정
+% ============================================================
+\section{모형 한계 및 가정}\label{sec:limitations}
+
+\subsection{주요 가정}
+
+\begin{enumerate}[noitemsep]
+    \item \textbf{UC 미모형}: 기동정지(Unit Commitment)를 직접 모형화하지 않고
+          Price Adder로 근사한다. 기동비, 무부하비, 최소가동시간의 시계열 효과는
+          부분적으로만 반영된다.
+
+    \item \textbf{단일 노드}: 송전 제약을 고려하지 않는 단일 노드(copper plate) 모형이다.
+          송전혼잡(transmission congestion)에 의한 지역별 SMP 차이는 반영되지 않는다.
+
+    \item \textbf{송전손실계수}: TLF(Transmission Loss Factor)를 1.0으로 가정한다.
+
+    \item \textbf{RE Potential $\equiv$ 발전량}: 2024년 데이터에서 peak CF $< 1$이므로
+          발전량을 physical availability로 직접 사용한다.
+
+    \item \textbf{VOM 미포함}: 한국 CBP 시장에서 변동운영비(VOM)는 별도 정산되므로
+          발전비용에 포함하지 않는다.
+
+    \item \textbf{확정적 수요}: 수요는 실측 데이터를 사용하며 불확실성을 고려하지 않는다.
+\end{enumerate}
+
+\subsection{향후 확장 방향}
+
+\begin{itemize}[noitemsep]
+    \item UC(Unit Commitment) 통합 모형으로의 확장
+    \item 다노드 모형 및 송전 제약 반영
+    \item 에너지저장장치(ESS) 입찰 참여 모형화
+    \item 수요 불확실성의 확률적 모형화
+    \item REC 가격의 동태적 모형화
+\end{itemize}
+
+
+% ============================================================
+% 부록
+% ============================================================
+\appendix
+
+\section{Piecewise Linear 근사의 정확성}\label{app:piecewise}
+
+2차 비용함수 $C(P) = aP^2 + bP + c$를 $S$개 구간으로 분할할 때,
+각 구간의 근사 오차 한계를 분석한다.
+
+구간 $s$의 폭 $\bar{\delta} = (P^{\max} - P^{\min})/S$에서
+최대 오차는 구간 양 끝점과 중점의 MC 차이에 비례한다:
+\begin{equation}
+    \max_s |MC(p) - \text{mc}_s| \leq a \cdot \bar{\delta} \times 1000 \qquad [\text{원/MWh}]
+\end{equation}
+$S = 4$일 때 출력 범위 500 MW, $a = 0.001$인 경우:
+$\bar{\delta} = 125$ MW, 최대 오차 $= 0.001 \times 125 \times 1000 = 125$ 원/MWh.
+
+구간 수 $S$를 증가시키면 오차는 $O(1/S)$로 감소하지만, LP 크기가 비례 증가한다.
+$S=4$는 정확도와 계산 효율의 균형점으로 선택되었다.
+
+
+\section{LP Dual과 SMP의 관계}\label{app:dual_smp}
+
+선형계획법(LP)의 강쌍대정리(Strong Duality Theorem)에 의해,
+최적 원시해(primal)와 쌍대해(dual)의 목적값이 일치한다.
+
+수급균형 제약 $\sum_g p_{g,t} = D_t$에 대응하는 쌍대변수 $\lambda_t$는:
+\begin{equation}
+    \lambda_t = \frac{\partial z^*}{\partial D_t}
+\end{equation}
+즉, 수요 $D_t$가 1 MW 증가할 때 최소 총비용 $z^*$의 증가분을 나타내며,
+이는 경제학적으로 한계가격(marginal price)과 일치한다.
+
+LP에서 한계발전기(marginal generator)가 유일하게 결정되면
+$\lambda_t = c_{g^*}$ (한계발전기의 비용)이 된다.
+복수의 한계발전기가 존재하면 LP 솔버에 의해 하나의 dual value가 선택된다.
+
+Post-ED에서 $\text{re\_net}_t$ 변수의 비용 $\varepsilon_{\text{nonbid}}$는
+$\text{re\_net}_t$가 상한에 도달하지 않는 한 dual에 영향을 주지 않는다.
+상한에 도달하면(출력제한 발생) dual에 $\varepsilon_{\text{nonbid}}$가 반영되나,
+이는 출력제한 시의 실제 비용 신호로 해석할 수 있다.
+
+
+\section{원전 호기명-발전기 ID 매핑 테이블}\label{app:nuclear_map}
+
+\begin{longtable}{ll}
+\caption{원전 호기명 $\to$ Generator ID 매핑}\label{tab:nuclear_map} \\
+\toprule
+\textbf{호기명} & \textbf{Generator ID} \\
+\midrule
+\endfirsthead
+\multicolumn{2}{c}{\tablename\ \thetable{} -- (이어서)} \\
+\toprule
+\textbf{호기명} & \textbf{Generator ID} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+새울1호기   & Nuclear\_001 \\
+고리3호기   & Nuclear\_002 \\
+고리4호기   & Nuclear\_003 \\
+신고리1호기 & Nuclear\_004 \\
+신고리2호기 & Nuclear\_005 \\
+새울2호기   & Nuclear\_006 \\
+새울3호기   & Nuclear\_007 \\
+한빛1호기   & Nuclear\_008 \\
+한빛2호기   & Nuclear\_009 \\
+한빛3호기   & Nuclear\_010 \\
+한빛4호기   & Nuclear\_011 \\
+한빛5호기   & Nuclear\_012 \\
+한빛6호기   & Nuclear\_013 \\
+신한울1호기 & Nuclear\_014 \\
+신한울2호기 & Nuclear\_015 \\
+신월성2호기 & Nuclear\_016 \\
+신월성1호기 & Nuclear\_017 \\
+월성2호기   & Nuclear\_018 \\
+월성3호기   & Nuclear\_019 \\
+월성4호기   & Nuclear\_020 \\
+한울1호기   & Nuclear\_021 \\
+한울2호기   & Nuclear\_022 \\
+한울3호기   & Nuclear\_023 \\
+한울4호기   & Nuclear\_024 \\
+한울5호기   & Nuclear\_025 \\
+한울6호기   & Nuclear\_025 \\
+\end{longtable}
+
+\noindent 한울5호기와 한울6호기는 통합 모델(fallback)로 처리되어 동일 ID를 사용한다.
+MATPOWER KPG193 데이터의 bus 번호 구분:
+bus 82 = 고리/신고리/새울, bus 124 = 한빛,
+bus 166 = 월성/신월성, bus 175 = 한울/신한울.
+
+
+\section{기본 파라미터 값}\label{app:default_params}
+
+\begin{table}[H]
+\centering
+\caption{주요 기본 파라미터}\label{tab:default_params}
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{파라미터} & \textbf{기호} & \textbf{기본값} & \textbf{비고} \\
+\midrule
+PW 세그먼트 수 & $S$ & 4 & 구간별 선형 근사 \\
+입찰참여율 (PV) & $\rho_{\text{PV}}$ & 0.3 & \\
+입찰참여율 (Wind) & $\rho_{\text{W}}$ & 0.3 & \\
+하한가 계수 & $\beta$ & 2.0 & \\
+REC 가격 & & 80 원/kWh & \\
+RE Pmin 비율 & $\alpha$ & 0.1 & \\
+비입찰 RE 비용 & $\varepsilon_{\text{nonbid}}$ & 100 원/MWh & \\
+학습률 & $\eta$ & 0.3 (단일일) / 0.2 (다일) & \\
+L2 shrinkage & $\lambda\eta$ & 0.05 & \\
+단일일 최대 반복 & $N_{\max}$ & 20 & \\
+다일 에폭 수 & & 10 & \\
+목표 MAE & & 5,000 (단일일) / 4,000 (다일) & 원/MWh \\
+Common shock $\sigma$ & $\sigma$ & 0.10 & \\
+MC 표본 수 & $N$ & 200 (기본) / 100 (침투도) & \\
+Buffer 일수 & & $\pm 3$ & Train/Test 분리 \\
+계절당 Train 일수 & & 25 & \\
+계절당 Test 일수 & & 3 & \\
+블록 가중치 & $\bm{w}$ & (0.4, 0.3, 0.3) & Low/Mid/High \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{Version History}\label{app:changelog}
+
+\begin{description}[style=nextline]
+    \item[v2 (개별 발전기 122기 + real-data)]
+    주요 변경사항:
+    \begin{itemize}[noitemsep]
+        \item 개별 발전기 122기 (클러스터링 없음), MATPOWER KPG193 기반
+        \item heat\_rate/vom 제거: 한국 CBP 시장에서 gencost에 열소비율 내포
+        \item Potential 재구성 (가정: 2024 발전량 $\equiv$ potential, max CF $< 1$)
+        \item BidderType mixture (aggressive/moderate/conservative/PPA\_locked)
+        \item Case\_A\_zero $\equiv$ $\rho=0$ baseline (\texttt{bidding\_active=false}), $\varepsilon_{\text{nonbid}}=100$
+        \item RE Pmin = $\min(\alpha \cdot \text{installed\_mw}, \text{avail})$
+        \item Beta$(\alpha,\beta)$ mixture + common shock 몬테카를로
+        \item 활성 marginal 전체 갱신 + $1/n_{\text{marg}}$ 정규화
+        \item Tikhonov L2 shrinkage ($\lambda\eta = 0.05$/iter)
+        \item Curtailment-free calibration (RE must-take, dual purity)
+        \item Train/test/buffer split (계절 $\pm$3일 buffer) + 3D adder $G \times 24 \times S$
+        \item Sanity assert: $|\text{SMP}_{\text{post},A} - \text{SMP}_{\text{pre}}| < 1$
+    \end{itemize}
+\end{description}
+
+
+\end{document}

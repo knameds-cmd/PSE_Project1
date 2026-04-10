@@ -20,7 +20,7 @@
 # ============================================================
 
 using JuMP
-using HiGHS
+using Gurobi
 import MathOptInterface as MOI
 
 # ============================================================
@@ -42,7 +42,7 @@ end
 # Pre-revision ED 풀기 (Piecewise Linear 지원)
 # ============================================================
 """
-    solve_pre_ed(input::PreEDInput; pw_costs=PiecewiseCost[], curtailment_free=false) -> EDResult
+    solve_pre_ed(input::PreEDInput; pw_costs=PiecewiseCost[]) -> EDResult
 
 Pre-revision ED를 풀고 결과를 반환한다.
 
@@ -52,7 +52,8 @@ Pre-revision ED를 풀고 결과를 반환한다.
 3. 램프 제약: |p_{g,t} - p_{g,t-1}| ≤ ramp limit
 4. must-run: pmin 이상 강제 발전
 5. [개선 2] Piecewise Linear 비용함수 (pw_costs 제공 시)
-
+"""
+"""
 ## §9 — curtailment_free
 - false (default): 현행 시장 규칙 — RE 가 must-run pmin 합을 침범하면
   사전 cap (curtailment 발생). ΔSMP 분석용 baseline.
@@ -115,7 +116,7 @@ function solve_pre_ed(input::PreEDInput;
     total_mc = input.effective_mc .+ input.price_adder  # [G × T]
 
     # ── JuMP 모델 ──
-    model = Model(HiGHS.Optimizer)
+    model = Model(Gurobi.Optimizer)
     set_silent(model)
 
     # ── 열발전 변수 (Piecewise Linear 지원) ──
@@ -253,21 +254,15 @@ Basic ED의 EDInput을 Pre ED 입력으로 확장.
 """
 function make_pre_input(base_input::EDInput;
                         fuel_prices::Union{Nothing, Dict{String,Float64}}=nothing,
-                        adder::Union{Nothing, Matrix{Float64}}=nothing,
-                        gencost_dict::Union{Nothing, Dict{String,Tuple{Float64,Float64,Float64}}}=nothing)
+                        adder::Union{Nothing, Matrix{Float64}}=nothing)
     T = base_input.T
     G = length(base_input.clusters)
 
-    # 유효 한계비용 계산: gencost 기반 우선, 없으면 marginal_cost fallback
-    if !isnothing(gencost_dict)
-        mc_matrix = build_effective_mc_matrix(base_input.clusters, gencost_dict, T)
-    else
-        # marginal_cost fallback (gencost_dict 없이 호출 시)
-        mc_matrix = zeros(G, T)
-        for g in 1:G
-            mc_matrix[g, :] .= base_input.clusters[g].marginal_cost
-        end
+    # 유효 한계비용 계산
+    if isnothing(fuel_prices)
+        fuel_prices = default_fuel_prices()
     end
+    mc_matrix = build_effective_mc_matrix(base_input.clusters, fuel_prices, T)
 
     # Price adder (초기값: 0)
     if isnothing(adder)
