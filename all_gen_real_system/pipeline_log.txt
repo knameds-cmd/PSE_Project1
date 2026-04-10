@@ -1,0 +1,1104 @@
+==========================================================================
+  전력시스템 경제 프로젝트 — 개별 발전기 122기 파이프라인
+  재생에너지 입찰제 도입에 따른 한국 육지계통 SMP 변화 분석
+  실행 시각: 2026-04-10T20:00:28.800
+==========================================================================
+
+--------------------------------------------------------------------------
+  PHASE 0: 데이터 준비
+--------------------------------------------------------------------------
+  발전기 122기 로딩 완료
+    Coal: 41기, 총용량 38130.0 MW
+    LNG: 56기, 총용량 41200.0 MW
+    Nuclear: 25기, 총용량 24650.0 MW
+  gencost 122기 로딩 완료
+  unit_specs 122기 로딩 완료
+
+  발전기: 122기
+
+  -- SMP/수요/재생에너지 데이터 병합 --
+  병합 완료: 8784행
+
+  -- 대표일 12일 선정 --
+  대표일 12일:
+     1. 2024-05-16 [spring] 최대수요=65411 MW, 평균SMP=124088 원/MWh
+     2. 2024-05-22 [spring] 최대수요=68837 MW, 평균SMP=129553 원/MWh
+     3. 2024-03-05 [spring] 최대수요=81691 MW, 평균SMP=135985 원/MWh
+     4. 2024-06-16 [summer] 최대수요=63577 MW, 평균SMP=112178 원/MWh
+     5. 2024-06-21 [summer] 최대수요=77749 MW, 평균SMP=131643 원/MWh
+     6. 2024-08-20 [summer] 최대수요=97115 MW, 평균SMP=157355 원/MWh
+     7. 2024-10-20 [fall] 최대수요=59093 MW, 평균SMP=96088 원/MWh
+     8. 2024-10-25 [fall] 최대수요=68375 MW, 평균SMP=120622 원/MWh
+     9. 2024-09-11 [fall] 최대수요=93246 MW, 평균SMP=150372 원/MWh
+    10. 2024-02-12 [winter] 최대수요=61340 MW, 평균SMP=85473 원/MWh
+    11. 2024-12-24 [winter] 최대수요=82612 MW, 평균SMP=124757 원/MWh
+    12. 2024-01-23 [winter] 최대수요=89231 MW, 평균SMP=162456 원/MWh
+
+  QP 2차 비용함수: 122기 gencost 로딩 완료
+  Adder bounds: max=13466.0 원/MWh
+
+==========================================================================
+  대표일 1/12: 2024-05-16
+==========================================================================
+  Nuclear: 4기 정비, 가용 21250.0 MW
+    OFF: 신고리2호기 -> Nuclear_005
+    OFF: 한빛4호기 -> Nuclear_011
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 월성4호기 -> Nuclear_020
+
+  [PHASE 1] Basic ED...
+    MAE: 70298 원/MWh, RMSE: 72941 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=70298.0 원/MWh, RMSE=72941.0 원/MWh
+  [Calibration iter 2] MAE=64115.0 원/MWh, RMSE=67065.0 원/MWh
+  [Calibration iter 3] MAE=61394.0 원/MWh, RMSE=64505.0 원/MWh
+  [Calibration iter 4] MAE=60938.0 원/MWh, RMSE=64082.0 원/MWh
+  [Calibration iter 5] MAE=60899.0 원/MWh, RMSE=64060.0 원/MWh
+  [Calibration iter 6] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 7] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 8] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 9] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 10] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 11] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 12] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 13] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 14] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+  [Calibration iter 15] MAE=60898.0 원/MWh, RMSE=64059.0 원/MWh
+    15 iterations, Final MAE: 60898 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 60898 원/MWh, RMSE: 64059 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 54931 ~ 67593 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +4387 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-05-16 complete.
+
+==========================================================================
+  대표일 2/12: 2024-05-22
+==========================================================================
+  Nuclear: 4기 정비, 가용 21250.0 MW
+    OFF: 신고리2호기 -> Nuclear_005
+    OFF: 한빛4호기 -> Nuclear_011
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 월성4호기 -> Nuclear_020
+
+  [PHASE 1] Basic ED...
+    MAE: 73942 원/MWh, RMSE: 75813 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=73942.0 원/MWh, RMSE=75813.0 원/MWh
+  [Calibration iter 2] MAE=66487.0 원/MWh, RMSE=68496.0 원/MWh
+  [Calibration iter 3] MAE=63847.0 원/MWh, RMSE=65994.0 원/MWh
+  [Calibration iter 4] MAE=63531.0 원/MWh, RMSE=65729.0 원/MWh
+  [Calibration iter 5] MAE=63521.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 6] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 7] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 8] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 9] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 10] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 11] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 12] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 13] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 14] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+  [Calibration iter 15] MAE=63520.0 원/MWh, RMSE=65724.0 원/MWh
+    15 iterations, Final MAE: 63520 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 63520 원/MWh, RMSE: 65724 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 63105 ~ 68044 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +2819 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-05-22 complete.
+
+==========================================================================
+  대표일 3/12: 2024-03-05
+==========================================================================
+  Nuclear: 2기 정비, 가용 22250.0 MW
+    OFF: 신월성2호기 -> Nuclear_016
+    OFF: 신한울1호기 -> Nuclear_014
+
+  [PHASE 1] Basic ED...
+    MAE: 75951 원/MWh, RMSE: 80094 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=75951.0 원/MWh, RMSE=80094.0 원/MWh
+  [Calibration iter 2] MAE=68755.0 원/MWh, RMSE=73280.0 원/MWh
+  [Calibration iter 3] MAE=67110.0 원/MWh, RMSE=71999.0 원/MWh
+  [Calibration iter 4] MAE=66881.0 원/MWh, RMSE=71876.0 원/MWh
+  [Calibration iter 5] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 6] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 7] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 8] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 9] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 10] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 11] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 12] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 13] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 14] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+  [Calibration iter 15] MAE=66870.0 원/MWh, RMSE=71871.0 원/MWh
+    15 iterations, Final MAE: 66870 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 66870 원/MWh, RMSE: 71871 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: +0 원/MWh
+    → SMP 범위 (5th-95th): 66072 ~ 73296 원/MWh
+    MC mean dSMP: 0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +1198 원/MWh, 하락 5시간, 상승 19시간
+  Day 2024-03-05 complete.
+
+==========================================================================
+  대표일 4/12: 2024-06-16
+==========================================================================
+  Nuclear: 4기 정비, 가용 21550.0 MW
+    OFF: 월성2호기 -> Nuclear_018
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 월성4호기 -> Nuclear_020
+    OFF: 신월성1호기 -> Nuclear_017
+
+  [PHASE 1] Basic ED...
+    MAE: 58911 원/MWh, RMSE: 61523 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=58911.0 원/MWh, RMSE=61523.0 원/MWh
+  [Calibration iter 2] MAE=53206.0 원/MWh, RMSE=56079.0 원/MWh
+  [Calibration iter 3] MAE=50784.0 원/MWh, RMSE=53809.0 원/MWh
+  [Calibration iter 4] MAE=50308.0 원/MWh, RMSE=53413.0 원/MWh
+  [Calibration iter 5] MAE=50262.0 원/MWh, RMSE=53383.0 원/MWh
+  [Calibration iter 6] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 7] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 8] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 9] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 10] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 11] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 12] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 13] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 14] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+  [Calibration iter 15] MAE=50260.0 원/MWh, RMSE=53382.0 원/MWh
+    15 iterations, Final MAE: 50260 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 50260 원/MWh, RMSE: 53382 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: +0 원/MWh
+    → SMP 범위 (5th-95th): 54339 ~ 67237 원/MWh
+    MC mean dSMP: 0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +5146 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-06-16 complete.
+
+==========================================================================
+  대표일 5/12: 2024-06-21
+==========================================================================
+  Nuclear: 4기 정비, 가용 21550.0 MW
+    OFF: 월성2호기 -> Nuclear_018
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 월성4호기 -> Nuclear_020
+    OFF: 신월성1호기 -> Nuclear_017
+
+  [PHASE 1] Basic ED...
+    MAE: 73347 원/MWh, RMSE: 75534 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=73347.0 원/MWh, RMSE=75534.0 원/MWh
+  [Calibration iter 2] MAE=66030.0 원/MWh, RMSE=68483.0 원/MWh
+  [Calibration iter 3] MAE=63994.0 원/MWh, RMSE=66632.0 원/MWh
+  [Calibration iter 4] MAE=63850.0 원/MWh, RMSE=66524.0 원/MWh
+  [Calibration iter 5] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 6] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 7] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 8] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 9] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 10] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 11] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 12] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 13] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 14] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+  [Calibration iter 15] MAE=63849.0 원/MWh, RMSE=66523.0 원/MWh
+    15 iterations, Final MAE: 63849 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 63849 원/MWh, RMSE: 66523 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 65471 ~ 70245 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +1810 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-06-21 complete.
+
+==========================================================================
+  대표일 6/12: 2024-08-20
+==========================================================================
+  Nuclear: 5기 정비, 가용 20700.0 MW
+    OFF: 한빛6호기 -> Nuclear_013
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 월성4호기 -> Nuclear_020
+    OFF: 한울3호기 -> Nuclear_023
+    OFF: 한울5호기 -> Nuclear_025
+
+  [PHASE 1] Basic ED...
+    MAE: 91441 원/MWh, RMSE: 92905 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=91441.0 원/MWh, RMSE=92905.0 원/MWh
+  [Calibration iter 2] MAE=84456.0 원/MWh, RMSE=86127.0 원/MWh
+  [Calibration iter 3] MAE=83689.0 원/MWh, RMSE=85463.0 원/MWh
+  [Calibration iter 4] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 5] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 6] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 7] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 8] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 9] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 10] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 11] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 12] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 13] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 14] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+  [Calibration iter 15] MAE=83672.0 원/MWh, RMSE=85449.0 원/MWh
+    15 iterations, Final MAE: 83672 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 83672 원/MWh, RMSE: 85449 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: +0 원/MWh
+    → SMP 범위 (5th-95th): 67452 ~ 79844 원/MWh
+    MC mean dSMP: 0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +198 원/MWh, 하락 9시간, 상승 15시간
+  Day 2024-08-20 complete.
+
+==========================================================================
+  대표일 7/12: 2024-10-20
+==========================================================================
+  Nuclear: 3기 정비, 가용 22350.0 MW
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 한울4호기 -> Nuclear_024
+    OFF: 한울5호기 -> Nuclear_025
+
+  [PHASE 1] Basic ED...
+    MAE: 44000 원/MWh, RMSE: 44612 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=44000.0 원/MWh, RMSE=44612.0 원/MWh
+  [Calibration iter 2] MAE=39100.0 원/MWh, RMSE=39698.0 원/MWh
+  [Calibration iter 3] MAE=36775.0 원/MWh, RMSE=37387.0 원/MWh
+  [Calibration iter 4] MAE=36203.0 원/MWh, RMSE=36845.0 원/MWh
+  [Calibration iter 5] MAE=36092.0 원/MWh, RMSE=36760.0 원/MWh
+  [Calibration iter 6] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 7] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 8] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 9] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 10] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 11] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 12] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 13] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 14] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+  [Calibration iter 15] MAE=36079.0 원/MWh, RMSE=36752.0 원/MWh
+    15 iterations, Final MAE: 36079 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 36079 원/MWh, RMSE: 36752 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 52148 ~ 65645 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +6175 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-10-20 complete.
+
+==========================================================================
+  대표일 8/12: 2024-10-25
+==========================================================================
+  Nuclear: 2기 정비, 가용 22700.0 MW
+    OFF: 고리4호기 -> Nuclear_003
+    OFF: 한울4호기 -> Nuclear_024
+
+  [PHASE 1] Basic ED...
+    MAE: 65215 원/MWh, RMSE: 69755 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=65215.0 원/MWh, RMSE=69755.0 원/MWh
+  [Calibration iter 2] MAE=57914.0 원/MWh, RMSE=62920.0 원/MWh
+  [Calibration iter 3] MAE=55259.0 원/MWh, RMSE=60485.0 원/MWh
+  [Calibration iter 4] MAE=54799.0 원/MWh, RMSE=60157.0 원/MWh
+  [Calibration iter 5] MAE=54759.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 6] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 7] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 8] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 9] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 10] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 11] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 12] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 13] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 14] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+  [Calibration iter 15] MAE=54758.0 원/MWh, RMSE=60137.0 원/MWh
+    15 iterations, Final MAE: 54758 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 54758 원/MWh, RMSE: 60137 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 62834 ~ 68019 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +2881 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-10-25 complete.
+
+==========================================================================
+  대표일 9/12: 2024-09-11
+==========================================================================
+  Nuclear: 5기 정비, 가용 20700.0 MW
+    OFF: 한빛6호기 -> Nuclear_013
+    OFF: 월성3호기 -> Nuclear_019
+    OFF: 월성4호기 -> Nuclear_020
+    OFF: 한울3호기 -> Nuclear_023
+    OFF: 한울5호기 -> Nuclear_025
+
+  [PHASE 1] Basic ED...
+    MAE: 86153 원/MWh, RMSE: 86255 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=86153.0 원/MWh, RMSE=86255.0 원/MWh
+  [Calibration iter 2] MAE=78999.0 원/MWh, RMSE=79130.0 원/MWh
+  [Calibration iter 3] MAE=77965.0 원/MWh, RMSE=78147.0 원/MWh
+  [Calibration iter 4] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 5] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 6] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 7] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 8] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 9] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 10] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 11] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 12] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 13] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 14] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+  [Calibration iter 15] MAE=77930.0 원/MWh, RMSE=78115.0 원/MWh
+    15 iterations, Final MAE: 77930 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 77930 원/MWh, RMSE: 78115 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Error: Post ED 최적화 실패: status = OTHER_ERROR
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\build_post_ed.jl:250
+┌ Warning: 몬테카를로: 모든 샘플 실패
+└ @ Main C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\scenarios.jl:345
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 67341 ~ 76624 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +899 원/MWh, 하락 7시간, 상승 17시간
+  Day 2024-09-11 complete.
+
+==========================================================================
+  대표일 10/12: 2024-02-12
+==========================================================================
+  Nuclear: 3기 정비, 가용 21250.0 MW
+    OFF: 한빛3호기 -> Nuclear_010
+    OFF: 신월성2호기 -> Nuclear_016
+    OFF: 신한울1호기 -> Nuclear_014
+
+  [PHASE 1] Basic ED...
+    MAE: 39932 원/MWh, RMSE: 40698 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=39932.0 원/MWh, RMSE=40698.0 원/MWh
+  [Calibration iter 2] MAE=33995.0 원/MWh, RMSE=34572.0 원/MWh
+  [Calibration iter 3] MAE=31689.0 원/MWh, RMSE=32275.0 원/MWh
+  [Calibration iter 4] MAE=31133.0 원/MWh, RMSE=31756.0 원/MWh
+  [Calibration iter 5] MAE=31067.0 원/MWh, RMSE=31703.0 원/MWh
+  [Calibration iter 6] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 7] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 8] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 9] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 10] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 11] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 12] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 13] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 14] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+  [Calibration iter 15] MAE=31065.0 원/MWh, RMSE=31701.0 원/MWh
+    15 iterations, Final MAE: 31065 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 31065 원/MWh, RMSE: 31701 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: +0 원/MWh
+    → SMP 범위 (5th-95th): 42507 ~ 66700 원/MWh
+    MC mean dSMP: 0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +5127 원/MWh, 하락 0시간, 상승 24시간
+  Day 2024-02-12 complete.
+
+==========================================================================
+  대표일 11/12: 2024-12-24
+==========================================================================
+  Nuclear: 2기 정비, 가용 22300.0 MW
+    OFF: 새울1호기 -> Nuclear_001
+    OFF: 한울4호기 -> Nuclear_024
+
+  [PHASE 1] Basic ED...
+    MAE: 65116 원/MWh, RMSE: 69024 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=65116.0 원/MWh, RMSE=69024.0 원/MWh
+  [Calibration iter 2] MAE=58090.0 원/MWh, RMSE=62384.0 원/MWh
+  [Calibration iter 3] MAE=56135.0 원/MWh, RMSE=60740.0 원/MWh
+  [Calibration iter 4] MAE=55921.0 원/MWh, RMSE=60613.0 원/MWh
+  [Calibration iter 5] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 6] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 7] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 8] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 9] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 10] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 11] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 12] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 13] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 14] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+  [Calibration iter 15] MAE=55908.0 원/MWh, RMSE=60608.0 원/MWh
+    15 iterations, Final MAE: 55908 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 55908 원/MWh, RMSE: 60608 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+  ✓ 몬테카를로 완료: 50/50 성공
+    → 평균 ΔSMP: -0 원/MWh
+    → SMP 범위 (5th-95th): 66833 ~ 73899 원/MWh
+    MC mean dSMP: -0 원/MWh
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +1330 원/MWh, 하락 5시간, 상승 19시간
+  Day 2024-12-24 complete.
+
+==========================================================================
+  대표일 12/12: 2024-01-23
+==========================================================================
+  Nuclear: 3기 정비, 가용 21250.0 MW
+    OFF: 한빛3호기 -> Nuclear_010
+    OFF: 신월성2호기 -> Nuclear_016
+    OFF: 신한울1호기 -> Nuclear_014
+
+  [PHASE 1] Basic ED...
+    MAE: 98856 원/MWh, RMSE: 100379 원/MWh
+
+  [PHASE 2] Price Adder Calibration...
+  [Calibration iter 1] MAE=98856.0 원/MWh, RMSE=100379.0 원/MWh
+  [Calibration iter 2] MAE=91084.0 원/MWh, RMSE=92685.0 원/MWh
+  [Calibration iter 3] MAE=90262.0 원/MWh, RMSE=91976.0 원/MWh
+  [Calibration iter 4] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 5] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 6] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 7] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 8] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 9] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 10] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 11] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 12] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 13] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 14] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+  [Calibration iter 15] MAE=90242.0 원/MWh, RMSE=91960.0 원/MWh
+    15 iterations, Final MAE: 90242 원/MWh
+
+  [PHASE 3] Pre-revision ED...
+    MAE: 90242 원/MWh, RMSE: 91960 원/MWh
+
+  [PHASE 4] Post-revision ED (4 scenarios)...
+  [1/4] 시나리오: Case_A_zero
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=zero
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [2/4] 시나리오: Case_B_floor
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=floor
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [3/4] 시나리오: Case_C_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [4/4] 시나리오: Case_D_conservative
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=conservative
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+    Monte Carlo (50 samples)...
+  몬테카를로 시뮬레이션: 50회 샘플링 시작
+    [25/50] 완료
+    [50/50] 완료
+
+  [PHASE 5] Sensitivity...
+  [1/3] 시나리오: beta_1.5_mixed
+    β=1.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [2/3] 시나리오: beta_2.0_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [3/3] 시나리오: beta_2.5_mixed
+    β=2.5, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [1/4] 시나리오: rho_0.1_mixed
+    β=2.0, ρ_PV=0.1, ρ_W=0.1, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [2/4] 시나리오: rho_0.2_mixed
+    β=2.0, ρ_PV=0.2, ρ_W=0.2, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [3/4] 시나리오: rho_0.3_mixed
+    β=2.0, ρ_PV=0.3, ρ_W=0.3, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  [4/4] 시나리오: rho_0.5_mixed
+    β=2.0, ρ_PV=0.5, ρ_W=0.5, scenario=mixed
+    → 평균 ΔSMP: +1398 원/MWh, 하락 4시간, 상승 20시간
+  Day 2024-01-23 complete.
+
+==========================================================================
+  결과 저장
+==========================================================================
+  basic_result.csv: 288 rows
+  calibration_history.csv: 180 rows
+  pre_result.csv: 288 rows
+  scenario_summary.csv: 48 rows
+  scenario_hourly.csv: 1152 rows
+  curtailment_analysis.csv: 60 rows
+  monte_carlo_result.csv: 264 rows
+  sensitivity_beta.csv: 36 rows
+  sensitivity_rho.csv: 48 rows
+
+==========================================================================
+  파이프라인 완료
+==========================================================================
+  발전기: 122기 (개별 발전기, 클러스터링 없음)
+  대표일: 12일
+  Calibration 평균 MAE: 61254 원/MWh
+  시나리오 Case_A_zero: 평균 dSMP=2781 원/MWh
+  시나리오 Case_B_floor: 평균 dSMP=2781 원/MWh
+  시나리오 Case_C_mixed: 평균 dSMP=2781 원/MWh
+  시나리오 Case_D_conservative: 평균 dSMP=2781 원/MWh
+
+  출력: C:\Users\kname\Desktop\PSE_Project1\all_gen_real_system\all_gen_real_system_src\..\all_gen_real_system_outputs
+==========================================================================

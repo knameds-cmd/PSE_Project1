@@ -1,6 +1,6 @@
 # CHANGELOG
 
-Generated: 2026-04-10T22:01:12.603
+Generated: 2026-04-10T22:19:35.401
 
 v2 (개별 발전기 122기 + real-data) — 개선계획서 TASK 1~11
   - 개별 발전기 122기 (클러스터링 없음), MATPOWER KPG193 기반
