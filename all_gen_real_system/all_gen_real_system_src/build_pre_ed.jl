@@ -254,15 +254,25 @@ end
 # Pre ED 전용 한계연료원 식별
 # ============================================================
 """
-    identify_marginal_fuel_pre(result::EDResult, input::PreEDInput) -> Vector{String}
+    identify_marginal_fuel_pre(result, input; actual_mc=nothing) -> Vector{String}
 
 Pre ED에서의 한계연료원 식별.
-유효 한계비용 기준으로 판별 (Basic ED의 marginal_cost 대신).
+
+actual_mc가 제공되면 실제 운전점 MC를 사용 (전력시장운영규칙 준수).
+제공되지 않으면 input.effective_mc를 fallback으로 사용.
 """
-function identify_marginal_fuel_pre(result::EDResult, input::PreEDInput)
+function identify_marginal_fuel_pre(result::EDResult, input::PreEDInput;
+                                     actual_mc::Union{Nothing,Matrix{Float64}}=nothing)
     T = result.T
     G = length(input.base.clusters)
-    total_mc = input.effective_mc .+ input.price_adder
+
+    # 실제 운전점 MC 사용 (있으면), 없으면 초기값+adder
+    if !isnothing(actual_mc)
+        total_mc = actual_mc .+ input.price_adder
+    else
+        total_mc = input.effective_mc .+ input.price_adder
+    end
+
     marginal_fuels = Vector{String}(undef, T)
 
     for t in 1:T

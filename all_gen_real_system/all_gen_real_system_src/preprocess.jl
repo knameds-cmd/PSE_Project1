@@ -194,9 +194,17 @@ end
 """
     build_effective_mc_matrix(generators, gencost_dict, T) -> Matrix{Float64}
 
-발전기×시간 유효 한계비용 행렬 생성 [G × T].
-각 발전기의 중점((Pmin+Pmax)/2)에서의 MC를 사용.
-gencost가 없는 발전기는 generators.csv의 marginal_cost 사용.
+발전기×시간 유효 한계비용 행렬 **초기값** 생성 [G × T].
+
+주의: 이 함수는 solve 전 초기 추정용.
+한국 전력시장운영규칙 제2.4.2조에 따르면 증분가격은
+  IP = (2 × QPC × DAOS + LPC) / TLF / 1000
+으로 **실제 운전점(DAOS)**에서 계산해야 함.
+
+따라서 이 함수의 결과는:
+- solve_pre_ed에서 pw_costs 사용 시: 목적함수에 직접 사용되지 않음
+  (piecewise linear이 정확한 MC를 구간별로 적용)
+- solve 후: compute_actual_mc_matrix()로 실제 운전점 MC를 재계산해야 함
 """
 function build_effective_mc_matrix(generators::Vector{ThermalGenerator},
                                    gencost_dict::Dict{String,Tuple{Float64,Float64,Float64}},
@@ -207,6 +215,7 @@ function build_effective_mc_matrix(generators::Vector{ThermalGenerator},
     for g in 1:G
         gen = generators[g]
         if haskey(gencost_dict, gen.name)
+            # 초기값: 중점 MC (solve 전 추정용)
             p_mid = (gen.pmin + gen.pmax) / 2.0
             base_mc = compute_effective_mc_from_gencost(gencost_dict[gen.name], p_mid)
         else
@@ -220,7 +229,46 @@ function build_effective_mc_matrix(generators::Vector{ThermalGenerator},
     return mc_matrix
 end
 
-# 기존 코드 호환: fuel_prices 기반 함수 (사용하지 않지만 시그니처 유지)
+"""
+    compute_actual_mc_matrix(generators, gencost_dict, generation) -> Matrix{Float64}
+
+ED solve **이후** 실제 운전점에서의 MC 행렬 계산 [G × T].
+
+전력시장운영규칙 제2.4.2조 제4호:
+  IP_{i,t} = [(2 × QPC_i × DAOS_{i,t} + LPC_i) / TLF] / 1,000
+
+여기서 DAOS_{i,t} = generation[g, t] (ED 결과의 실제 발전량).
+TLF(송전손실계수)는 현재 1.0으로 가정.
+"""
+function compute_actual_mc_matrix(generators::Vector{ThermalGenerator},
+                                   gencost_dict::Dict{String,Tuple{Float64,Float64,Float64}},
+                                   generation::Matrix{Float64})
+    G, T = size(generation)
+    mc_matrix = zeros(G, T)
+
+    for g in 1:G
+        gen = generators[g]
+        if haskey(gencost_dict, gen.name)
+            a, b, _ = gencost_dict[gen.name]
+            for t in 1:T
+                P = generation[g, t]
+                if P > 1e-3
+                    # 실제 운전점에서의 MC: (2aP + b) × 1000 원/MWh
+                    mc_matrix[g, t] = (2.0 * a * P + b) * 1000.0
+                else
+                    # 미가동: MC를 pmin 기준으로 설정 (가격결정자격 판별용)
+                    mc_matrix[g, t] = (2.0 * a * gen.pmin + b) * 1000.0
+                end
+            end
+        else
+            mc_matrix[g, :] .= gen.marginal_cost
+        end
+    end
+
+    return mc_matrix
+end
+
+# 기존 코드 호환: fuel_prices 기반 함수
 function build_effective_mc_matrix(generators::Vector{ThermalGenerator},
                                    fuel_prices::Dict{String,Float64},
                                    T::Int)

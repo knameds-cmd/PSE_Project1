@@ -203,7 +203,10 @@ function main()
         end
 
         pre_metrics = compute_metrics(pre_result.smp, day.smp)
-        pre_fuels = identify_marginal_fuel_pre(pre_result, pre_input)
+
+        # 실제 운전점에서 MC 재계산 (전력시장운영규칙 제2.4.2조)
+        actual_mc = compute_actual_mc_matrix(adjusted_gens, gencost_dict, pre_result.generation)
+        pre_fuels = identify_marginal_fuel_pre(pre_result, pre_input; actual_mc=actual_mc)
         @printf("    MAE: %.0f 원/MWh, RMSE: %.0f 원/MWh\n",
                 pre_metrics.mae, pre_metrics.rmse)
 
